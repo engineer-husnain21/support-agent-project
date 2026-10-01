@@ -2,6 +2,7 @@
 conftest.py -- builds a throwaway copy of the database for each test and adds our own known orders to it.
 The tests never touch the real data/store.db.
 """
+import json
 import shutil
 import sqlite3
 from datetime import timedelta
@@ -66,3 +67,37 @@ class FakeClient:
         if self.exc:
             raise self.exc
         return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=self.content))])
+
+
+class ScriptedClient:
+    """Fake LLM that replays a script, one response per call.
+
+    Each script item is either a string (a plain reply) or a dict such as
+    {"tool_calls": [("issue_refund", {"order_id": 9001})]}.
+    Every request is kept in .requests so tests can inspect what the code sent.
+    """
+    def __init__(self, script):
+        self.script, self.requests, self.calls = list(script), [], 0
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+
+    def _create(self, **kwargs):
+        self.calls += 1
+        self.requests.append(kwargs)
+        item = self.script.pop(0) if self.script else "(script exhausted)"
+        if isinstance(item, str):
+            item = {"content": item}
+        calls = [SimpleNamespace(id=f"call_{self.calls}_{i}", type="function",
+                                 function=SimpleNamespace(name=name, arguments=json.dumps(args)))
+                 for i, (name, args) in enumerate(item.get("tool_calls", []))]
+        msg = SimpleNamespace(content=item.get("content"), tool_calls=calls or None)
+        return SimpleNamespace(choices=[SimpleNamespace(message=msg)])
+
+
+def add_ticket(ticket_id, body, email, subject="Help"):
+    """Insert a ticket into the throwaway test database."""
+    from app import db
+    con = sqlite3.connect(db.db_path())
+    con.execute("INSERT INTO tickets (ticket_id, customer_email, subject, body, created_at) VALUES (?,?,?,?,?)",
+                (ticket_id, email, subject, body, "2026-09-30 10:00"))
+    con.commit()
+    con.close()
