@@ -21,3 +21,13 @@ def is_known_customer(email: str) -> bool:
     finally:
         con.close()
     return row is not None
+
+
+def get_customer_name(email: str) -> str | None:
+    con = get_conn()
+    try:
+        row = con.execute("SELECT name FROM customers WHERE lower(email) = ?",
+                          ((email or "").strip().lower(),)).fetchone()
+    finally:
+        con.close()
+    return row["name"] if row else None

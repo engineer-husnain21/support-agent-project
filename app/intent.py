@@ -8,8 +8,9 @@ The code verifies everything the LLM says:
   - if the LLM/API fails, ok=False is returned (the pipeline will escalate this as 'system unavailable')
 """
 import json
-import os
 import re
+
+from app import llm
 
 ALLOWED_INTENTS = {"track", "refund", "address_change", "other"}
 ORDER_RE = re.compile(r"(?:order\s*(?:number|no\.?|id)?\s*#?\s*|#)(\d{3,6})", re.IGNORECASE)
@@ -34,22 +35,6 @@ def extract_order_ids(text: str) -> list[int]:
     return list(dict.fromkeys(ids))   # remove duplicates, keep the order
 
 
-def get_client():
-    from openai import OpenAI
-    return OpenAI(api_key=os.environ["LLM_API_KEY"], base_url=os.environ["LLM_BASE_URL"])
-
-
-def _call_llm(client, messages):
-    kwargs = dict(model=os.environ.get("LLM_MODEL", "test-model"), messages=messages, temperature=0)
-    effort = os.environ.get("LLM_REASONING_EFFORT")
-    if effort:
-        try:
-            return client.chat.completions.create(**kwargs, extra_body={"reasoning_effort": effort})
-        except Exception:
-            pass   # this model rejected the option: retry without it
-    return client.chat.completions.create(**kwargs)
-
-
 def _parse_json(content: str | None):
     if not content:
         return None
@@ -72,8 +57,8 @@ def classify_intent(subject: str, body: str, client=None) -> dict:
     order_ids = extract_order_ids(ticket_text)
 
     try:
-        client = client or get_client()
-        resp = _call_llm(client, [{"role": "system", "content": SYSTEM_PROMPT},
+        client = client or llm.get_client()
+        resp = llm.chat(client, [{"role": "system", "content": SYSTEM_PROMPT},
                                   {"role": "user", "content": ticket_text}])
         content = resp.choices[0].message.content
     except Exception as e:   # network, key, rate limit, etc.
