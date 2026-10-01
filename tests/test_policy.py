@@ -1,4 +1,4 @@
-"""policy.py ke tests -- koi database nahi, sirf rules."""
+"""Tests for policy.py -- no database, only rules."""
 from datetime import date, timedelta
 import pytest
 from app import policy
@@ -26,7 +26,7 @@ def test_80_dollars_needs_human():
     assert policy.check_refund(order(80.0), TODAY).decision == "needs_human"
 
 
-# ---- refund: 30 din ----
+# ---- refund: 30-day window ----
 @pytest.mark.parametrize("days,expected", [(1, "allowed"), (29, "allowed"), (30, "allowed"),
                                            (31, "denied"), (35, "denied"), (60, "denied")])
 def test_refund_window(days, expected):
@@ -36,11 +36,11 @@ def test_outside_window_reason():
     assert policy.check_refund(order(20.0, days_ago=35), TODAY).reason == "outside_30_day_window"
 
 def test_outside_window_beats_large_amount():
-    # $120 aur 35 din: human ke paas bhejne ka faida nahi, seedha denied
+    # $120 and 35 days: sending it to a human is pointless, so it is denied outright
     assert policy.check_refund(order(120.0, days_ago=35), TODAY).decision == "denied"
 
 
-# ---- refund: baaqi rules ----
+# ---- refund: other rules ----
 @pytest.mark.parametrize("status", ["processing", "shipped"])
 def test_not_delivered_denied(status):
     d = policy.check_refund(order(status=status), TODAY)

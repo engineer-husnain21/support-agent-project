@@ -1,6 +1,6 @@
 """
-try_tools.py -- Day 2: tools aur policy ko asli database pe chala ke dekhne ke liye.
-Ye sirf PARHTA hai, kuch badalta nahi.   Chalao:  python try_tools.py
+try_tools.py -- Day 2: run the tools and the policy against the real database.
+It only READS; nothing is changed.   Run:  python try_tools.py
 """
 import json
 from app import tools, policy
@@ -21,16 +21,16 @@ def show(title, data):
 
 
 today = store_today()
-print("Store ki aaj ki tareekh:", today)
+print("Store date (today):", today)
 
-# 1) Excel ka pehla test: "Where is my order #1042?"
-show("Order 1042 track (asli malik ke email se)", tools.track_shipment(1042, owner_email(1042)))
+# 1) First Excel test: "Where is my order #1042?"
+show("Order 1042 tracking (owner's email)", tools.track_shipment(1042, owner_email(1042)))
 
-# 2) Kisi aur ka order maango -> 'not found'
-show("Order 1042 kisi AUR ke email se", tools.lookup_order(1042, owner_email(1043)))
+# 2) Ask for someone else's order -> 'not found'
+show("Order 1042 looked up with SOMEONE ELSE's email", tools.lookup_order(1042, owner_email(1043)))
 
-# 3) Refund policy check (kuch badla nahi jata)
-for oid, label in [(1043, "$24.99 refund (10 din)"), (1045, "$119.99 refund (6 din)")]:
+# 3) Refund policy check (nothing is changed)
+for oid, label in [(1043, "$24.99 refund (10 days)"), (1045, "$119.99 refund (6 days)")]:
     o = tools.lookup_order(oid, owner_email(oid))
     show(f"Order {oid}: {label}", policy.check_refund(o, today).to_dict())
 
@@ -39,5 +39,5 @@ for oid in (1044, 1042):
     o = tools.lookup_order(oid, owner_email(oid))
     show(f"Order {oid}: address change (status={o['status']})", policy.check_address_change(o).to_dict())
 
-# 5) Order number nahi -> email se dhoondo
-show("Orders by email (order 1043 wale customer ke)", tools.find_orders_by_email(owner_email(1043)))
+# 5) No order number -> look up by email
+show("Orders by email (the customer who owns order 1043)", tools.find_orders_by_email(owner_email(1043)))

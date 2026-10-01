@@ -1,9 +1,9 @@
 """
 llm_test.py  --  Day 1
-Check karta hai ke tumhari LLM key kaam karti hai aur model TOOL CALLING support karta hai
-(agent ke liye tool calling zaroori hai).
+Checks that your LLM key works and that the model supports TOOL CALLING
+(the agent needs tool calling).
 
-Chalao:  python llm_test.py
+Run:  python llm_test.py
 """
 import os
 from dotenv import load_dotenv
@@ -41,6 +41,6 @@ r = client.chat.completions.create(
 msg = r.choices[0].message
 if msg.tool_calls:
     call = msg.tool_calls[0]
-    print("OK! Model ne tool call ki:", call.function.name, call.function.arguments)
+    print("OK! The model made a tool call:", call.function.name, call.function.arguments)
 else:
-    print("Model ne tool call NAHI ki. Koi aur model try karo jo tool calling support karta ho.")
+    print("The model did NOT make a tool call. Try another model that supports tool calling.")

@@ -1,19 +1,19 @@
 """
 make_mock_data.py  --  Day 1
-Banata hai: data/store.db (customers, orders, shipments, tickets, ticket_labels)
-            data/refund_policy.md
+Creates: data/store.db (customers, orders, shipments, tickets, ticket_labels)
+         data/refund_policy.md
 
-Chalao:  python make_mock_data.py
+Run:  python make_mock_data.py
 
-Note: ticket_labels table sirf TESTING ke liye hai (expected answer).
-Agent ka code is table ko KABHI nahi parhega.
+Note: the ticket_labels table is for TESTING only (it holds the expected answers).
+The agent's code must never read this table.
 """
 import os
 import random
 import sqlite3
 from datetime import date, datetime, timedelta
 
-random.seed(13)                      # same seed = same data har baar
+random.seed(13)                      # same seed = same data on every run
 TODAY = date.today()
 os.makedirs("data", exist_ok=True)
 DB_PATH = "data/store.db"
@@ -57,7 +57,7 @@ for i in range(N_CUSTOMERS):
 # ------------------------------------------------------------------- orders
 statuses = ["processing"] * 30 + ["shipped"] * 30 + ["delivered"] * (N_ORDERS - 60)
 random.shuffle(statuses)
-# demo orders ko fix karte hain (Excel ke test cases ke liye)
+# pin the demo orders (used by the Excel test cases)
 FORCED = {41: "shipped", 42: "delivered", 43: "processing", 44: "delivered"}   # order 1042..1045
 for idx, st in FORCED.items():
     if statuses[idx] != st:
@@ -67,7 +67,7 @@ for idx, st in FORCED.items():
 orders, shipments = [], []
 for i in range(N_ORDERS):
     oid = 1001 + i
-    cust = customers[i] if i < N_CUSTOMERS else random.choice(customers)   # har customer ka kam az kam 1 order
+    cust = customers[i] if i < N_CUSTOMERS else random.choice(customers)   # every customer gets at least one order
     item, price = random.choice(ITEMS)
     qty = 2 if random.random() < 0.12 else 1
     st = statuses[i]
@@ -95,17 +95,17 @@ for i in range(N_ORDERS):
         shipments.append(s)
     orders.append(o)
 
-# Excel ke demo cases ke liye fixed orders
+# fixed orders for the Excel demo cases
 by_id = {o["order_id"]: o for o in orders}
-o = by_id[1043]   # $24.99, 10 din pehle delivered  -> auto refund demo
+o = by_id[1043]   # $24.99, delivered 10 days ago -> auto-refund demo
 o.update(item="Wireless Mouse", quantity=1, amount=24.99, delivered_date=TODAY - timedelta(days=10))
 o["shipped_date"] = o["delivered_date"] - timedelta(days=3)
 o["order_date"] = o["shipped_date"] - timedelta(days=2)
-o = by_id[1045]   # $119.99, 6 din pehle delivered  -> human approval demo
+o = by_id[1045]   # $119.99, delivered 6 days ago -> human approval demo
 o.update(item="Coffee Maker", quantity=1, amount=119.99, delivered_date=TODAY - timedelta(days=6))
 o["shipped_date"] = o["delivered_date"] - timedelta(days=3)
 o["order_date"] = o["shipped_date"] - timedelta(days=2)
-for sh in shipments:                  # shipment dates ko orders ke saath match rakho
+for sh in shipments:                  # keep shipment dates consistent with the orders
     od = by_id[sh["order_id"]]
     if od["status"] == "delivered":
         sh["expected_date"] = od["delivered_date"]

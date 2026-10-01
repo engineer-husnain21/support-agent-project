@@ -1,4 +1,4 @@
-"""actions.py ke tests -- yahan check hota hai ke galat kaam hota hi nahi."""
+"""Tests for actions.py -- these check that wrong operations never happen."""
 import inspect
 import sqlite3
 from app import actions, db
@@ -50,9 +50,9 @@ def test_human_cannot_double_refund(store):
     assert r["executed"] is False and r["reason"] == "already_refunded"
 
 def test_boundaries(store):
-    assert actions.issue_refund(9004, ALICE)["executed"] is True      # bilkul 30 din
-    assert actions.issue_refund(9005, ALICE)["executed"] is False     # 31 din
-    assert actions.issue_refund(9006, ALICE)["executed"] is True      # bilkul $50
+    assert actions.issue_refund(9004, ALICE)["executed"] is True      # exactly 30 days
+    assert actions.issue_refund(9005, ALICE)["executed"] is False     # 31 days
+    assert actions.issue_refund(9006, ALICE)["executed"] is True      # exactly $50
     assert actions.issue_refund(9007, ALICE)["executed"] is False     # $50.01 -> human
 
 def test_cannot_refund_undelivered(store):
@@ -65,7 +65,7 @@ def test_cannot_refund_someone_elses_order(store):
     assert refunded_flag(9011) == 0
 
 def test_refund_has_no_amount_parameter():
-    # amount hamesha DB se aata hai; "refund $500" jaisi baat kisi parameter se ghus hi nahi sakti
+    # the amount always comes from the DB; something like "refund $500" can never enter through a parameter
     assert "amount" not in inspect.signature(actions.issue_refund).parameters
 
 

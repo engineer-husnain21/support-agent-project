@@ -1,4 +1,4 @@
-"""tools.py ke tests -- ownership sab se zaroori."""
+"""Tests for tools.py -- ownership matters most."""
 from app import tools
 from tests.conftest import ALICE, BOB
 
@@ -17,7 +17,7 @@ def test_other_customers_order_not_found(store):
     assert tools.lookup_order(9011, ALICE) == {"found": False, "reason": "order_not_found_on_account"}
 
 def test_nonexistent_order_looks_same_as_other_persons(store):
-    # dono ka jawab bilkul ek jaisa, taake pata na chale ke order kisi aur ka hai
+    # both give exactly the same answer, so nobody can tell the order belongs to someone else
     assert tools.lookup_order(9011, ALICE) == tools.lookup_order(123456, ALICE)
 
 def test_garbage_order_id(store):

@@ -1,23 +1,23 @@
 """
-policy.py -- SAARE rules yahan hain, plain Python mein. AI ka isme koi dakhal nahi.
+policy.py -- ALL business rules live here, in plain Python. The AI has no say in them.
 
-Har function ek Decision wapas karta hai:
-  allowed     -> kar do
-  needs_human -> rules ke andar hai, lekin insaan ki manzoori chahiye
-  denied      -> nahi ho sakta (wajah reason mein)
+Each function returns a Decision:
+  allowed     -> go ahead
+  needs_human -> within the rules, but a human must approve it
+  denied      -> not possible (the reason says why)
 """
 from dataclasses import dataclass, asdict
 from datetime import date
 
-REFUND_WINDOW_DAYS = 30        # delivery se 30 din tak
-AUTO_REFUND_LIMIT_CENTS = 5000  # $50.00 tak auto (cents mein, taake float ka masla na ho)
+REFUND_WINDOW_DAYS = 30        # within 30 days of delivery
+AUTO_REFUND_LIMIT_CENTS = 5000  # refunds up to $50.00 are automatic (in cents, to avoid float issues)
 
 
 @dataclass(frozen=True)
 class Decision:
     decision: str   # allowed / needs_human / denied
-    reason: str     # chhota code, jaise "outside_30_day_window"
-    message: str    # insaan ke liye ek line
+    reason: str     # short code, e.g. "outside_30_day_window"
+    message: str    # one line for a human reader
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -28,7 +28,7 @@ def _denied(reason: str, message: str) -> Decision:
 
 
 def check_refund(order: dict | None, today: date) -> Decision:
-    """order: tools.lookup_order() ka result (ownership pehle hi check ho chuki hoti hai)."""
+    """order: the result of tools.lookup_order() (ownership has already been checked)."""
     if not order or not order.get("found"):
         return _denied("order_not_found_on_account", "Order not found on this account.")
     if order["status"] != "delivered":

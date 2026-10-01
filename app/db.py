@@ -1,4 +1,4 @@
-"""db.py -- database se connection. Baaqi sab files yahin se connection leti hain."""
+"""db.py -- database connection helpers. Every other module gets its connection from here."""
 import os
 import sqlite3
 from datetime import date
@@ -7,7 +7,7 @@ DEFAULT_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "dat
 
 
 def db_path() -> str:
-    # Tests STORE_DB set karke ek alag copy use karte hain, asli DB kharab nahi hoti.
+    # Tests set STORE_DB to point at a throwaway copy, so the real database is never touched.
     return os.environ.get("STORE_DB", DEFAULT_DB)
 
 
@@ -18,8 +18,8 @@ def get_conn() -> sqlite3.Connection:
 
 
 def store_today() -> date:
-    """Store ki 'aaj' ki tareekh. make_mock_data.py ne jis din data banaya, wohi din.
-    Isse 30 din wali ginti demo ke din bhi wahi rehti hai jo data banate waqt thi."""
+    """The store's fixed 'today': the date make_mock_data.py generated the data on.
+    Using it keeps the 30-day window maths identical on demo day."""
     con = get_conn()
     try:
         row = con.execute("SELECT value FROM meta WHERE key='store_today'").fetchone()

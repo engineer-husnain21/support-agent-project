@@ -1,11 +1,11 @@
 """
-actions.py -- wo kaam jo database BADALTE hain (simulated refund, address change).
+actions.py -- operations that CHANGE the database (simulated refund, address change).
 
-Sab se zaroori: har action ke ANDAR policy dobara check hoti hai. Yaani agar agent (ya koi bug)
-galti se galat call kare, tab bhi code refuse kar dega.
-  - refund ka amount parameter hi nahi hai: amount hamesha database se aata hai
-  - 'approved_by_human' sirf human queue ka code lagayega, agent ke tool list mein ye hoga hi nahi
-  - insaan ki manzoori sirf $50 limit ko override karti hai; 30 din ya already refunded jaise rules nahi
+Most important: every action re-checks the policy INSIDE itself, so even if the agent
+(or a bug) calls it wrongly, the code still refuses.
+  - issue_refund has no amount parameter: the amount always comes from the database
+  - 'approved_by_human' will only be set by the human-queue code; the agent's tool list will not expose it
+  - human approval only overrides the $50 limit, never the 30-day window or the already-refunded rule
 """
 from datetime import datetime
 from app import policy, tools

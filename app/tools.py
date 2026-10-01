@@ -1,9 +1,8 @@
 """
-tools.py -- sirf PARHNE wale tools (database mein kuch badalte nahi).
-Day 3 mein agent inhi ko call karega.
+tools.py -- READ-ONLY tools (they never change the database). The agent will call these in Part B.
 
-Sab se zaroori usool: har tool customer_email leta hai, aur order tabhi dikhata hai jab wo
-usi customer ka ho. Kisi aur ka order ho ya order exist hi na kare, dono ka jawab ek jaisa hota hai.
+Most important rule: every tool takes customer_email and only shows an order if it belongs to that customer.
+An order that belongs to someone else and an order that does not exist produce exactly the same answer.
 """
 import os
 from app.db import get_conn
@@ -53,7 +52,7 @@ def lookup_order(order_id, customer_email: str) -> dict:
 
 
 def find_orders_by_email(customer_email: str) -> dict:
-    """Jab ticket mein order number na ho."""
+    """Used when the ticket has no order number."""
     con = get_conn()
     try:
         rows = con.execute(
