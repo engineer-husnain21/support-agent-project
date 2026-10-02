@@ -25,18 +25,27 @@ def _first_name(email: str) -> str:
     return name.split()[0] if name else "there"
 
 
+REQUEST_TEXT = {"refund": "a refund", "track": "order tracking", "address_change": "an address change", "other": "something else"}
+STEP_TEXT = {"lookup_order": "looked up the order", "track_shipment": "checked the shipment",
+             "issue_refund": "checked the refund policy", "update_address": "checked the address policy",
+             "escalate_to_human": "asked for a human"}
+
+
 def build_summary(ticket: dict, reason: str, intents=None, order_id=None, tools_used=None, detail=None) -> str:
-    body = " ".join((ticket["body"] or "").split())
-    parts = [f"{ticket['customer_email']} wrote: \"{body[:160]}{'...' if len(body) > 160 else ''}\"."]
+    """One paragraph for the human agent, built from facts (no LLM)."""
+    who = tickets.get_customer_name(ticket["customer_email"]) or ticket["customer_email"]
+    if intents:
+        wants = " and ".join(REQUEST_TEXT.get(i, i) for i in intents)
+        parts = [f"{who} is asking for {wants}" + (f" about order #{order_id}." if order_id else ".")]
+    else:
+        body = " ".join((ticket["body"] or "").split())
+        parts = [f"{who} wrote: \"{body[:110]}{'...' if len(body) > 110 else ''}\""]
     parts.append(f"Why a human is needed: {REASON_TEXT.get(reason, reason)}")
     if detail:
-        parts.append(f"Detail: {detail}")
-    if intents:
-        parts.append(f"Detected request: {', '.join(intents)}.")
-    if order_id:
-        parts.append(f"Order: #{order_id}.")
+        parts.append(f"Detail: {detail}.")
     if tools_used:
-        parts.append(f"Agent steps so far: {', '.join(tools_used)}.")
+        steps = list(dict.fromkeys(STEP_TEXT.get(t, t) for t in tools_used))
+        parts.append(f"The agent already {' and '.join(steps)}.")
     return " ".join(parts)
 
 

@@ -7,6 +7,8 @@ pipeline.py -- the whole flow for one ticket:
 process_ticket() always ends by saving a row in ticket_results and writing the audit log.
 Replies are never really sent; they are saved with reply_sent=1 and shown as SIMULATED in the UI.
 """
+import time
+
 from app import agent, audit, escalate, intent, results, screen, tickets, tools
 
 
@@ -37,10 +39,19 @@ def _which_order_question(t, orders: list) -> str:
 
 
 def process_ticket(ticket_id: int, client=None) -> dict:
+    """Run the whole flow for one ticket. A ticket that is processed again starts with a fresh audit trail."""
     t = tickets.get_ticket(ticket_id)
     if t is None:
         raise ValueError(f"Ticket {ticket_id} not found")
+    audit.clear(ticket_id)
+    started = time.perf_counter()
+    out = _process(t, client)
+    results.update_result(ticket_id, duration_ms=round((time.perf_counter() - started) * 1000))
+    return out
 
+
+def _process(t: dict, client=None) -> dict:
+    ticket_id = t["ticket_id"]
     audit.log(ticket_id, "ticket_received", {"customer_email": t["customer_email"], "subject": t["subject"]})
 
     # 1) Screen (no AI)

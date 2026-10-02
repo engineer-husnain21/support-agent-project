@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SupportDesk - Ticket Resolution Agent</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark" id="brand-mark"></div>
+      <div>
+        <div class="brand-name">SupportDesk</div>
+        <div class="brand-sub">POC-13 &middot; Ticket Resolution Agent</div>
+      </div>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-view="inbox"><span class="ico" data-icon="inbox"></span>Inbox</button>
+      <button class="tab" data-view="queue"><span class="ico" data-icon="users"></span>Human queue<span class="count-badge" id="queue-badge" hidden>0</span></button>
+      <button class="tab" data-view="dashboard"><span class="ico" data-icon="chart"></span>Dashboard</button>
+    </nav>
+    <div class="topbar-right">
+      <div class="sim-pill" title="Refunds and emails are simulated. Nothing real is sent or paid."><span class="dot"></span>Simulated mode</div>
+    </div>
+  </header>
+
+  <main id="view-inbox" class="view inbox">
+    <section class="col col-list">
+      <div class="col-head">
+        <div class="col-title">Inbox <span class="muted" id="inbox-count"></span></div>
+        <button class="btn btn-soft btn-sm" id="btn-process-next" title="Run the agent on the next 5 tickets that are still New"><span class="ico" data-icon="zap"></span>Process next 5</button>
+      </div>
+      <div class="search"><span class="ico" data-icon="search"></span><input id="search" type="search" placeholder="Search tickets" autocomplete="off"></div>
+      <div class="filters" id="filters"></div>
+      <div class="list" id="ticket-list"></div>
+    </section>
+
+    <section class="col col-main" id="detail"></section>
+
+    <aside class="col col-side" id="side"></aside>
+  </main>
+
+  <main id="view-queue" class="view page" hidden></main>
+  <main id="view-dashboard" class="view page" hidden></main>
+
+  <div id="toasts" class="toasts"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

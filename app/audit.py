@@ -33,3 +33,14 @@ def get_trail(ticket_id: int) -> list[dict]:
     finally:
         con.close()
     return [{"step": r["step"], "detail": json.loads(r["detail"]), "created_at": r["created_at"]} for r in rows]
+
+
+def clear(ticket_id: int) -> None:
+    """Remove the old trail of a ticket (used when a ticket is processed again, so the timeline shows only the latest run)."""
+    con = get_conn()
+    try:
+        _ensure(con)
+        con.execute("DELETE FROM audit_log WHERE ticket_id = ?", (ticket_id,))
+        con.commit()
+    finally:
+        con.close()
