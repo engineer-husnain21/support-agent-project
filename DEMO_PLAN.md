@@ -9,7 +9,7 @@ Rule: Days 4 and 5 are for BUILDING. Day 6 (Monday morning) is for opening this 
 
 - [ ] `python reset_store.py` (clean store: no old refunds, no old audit trail)
 - [ ] `python -m pytest` (everything passes)
-- [ ] Server running and the browser tab open (command is added on Day 4)
+- [ ] Server running: `python run_server.py`, and the browser open at http://127.0.0.1:8000 (Inbox tab)
 - [ ] `FAIL_TOOL` is NOT set (PowerShell: `Remove-Item Env:FAIL_TOOL`)
 - [ ] Groq key works (`python llm_test.py`) and the daily limit is not used up
 - [ ] Backup screen recording is ready
