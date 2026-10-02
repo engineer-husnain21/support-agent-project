@@ -105,6 +105,9 @@ def _process(t: dict, client=None) -> dict:
     if run.ungrounded:
         return _escalate(t, "ungrounded_reply", intents=i["intents"], order_id=order_id, tools_used=used,
                          detail="; ".join(run.ungrounded))
+    if run.promised_handoff:   # the agent wanted a human to follow up, so make that real instead of just promising it
+        return _escalate(t, "agent_escalated", intents=i["intents"], order_id=order_id, tools_used=used,
+                         detail="the agent's reply promised a human follow-up")
 
     # 5) Reply passed the grounding check: "send" it (simulated)
     return _finish(t, "auto_resolved", "auto_resolved", "handled_by_agent", run.final_reply)

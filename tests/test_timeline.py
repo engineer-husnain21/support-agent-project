@@ -48,3 +48,8 @@ def test_human_steps():
                             row("human_approved", {"by": "sara", "edited": True}),
                             row("human_rejected", {"by": "sara"})])
     assert "$119.99" in items[0]["title"] and "reply edited" in items[1]["title"] and items[2]["kind"] == "stop"
+
+
+def test_promise_check_step():
+    item = build_timeline([row("promise_check", {"ok": False, "matches": ["I'll forward"], "retry": False})])[0]
+    assert item["kind"] == "warn" and "promised a human follow-up" in item["title"] and "rewriting once" in item["detail"]

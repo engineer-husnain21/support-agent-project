@@ -100,3 +100,29 @@ def test_same_tool_call_is_cached(store):
     r, _ = run(9312, [{"tool_calls": [("track_shipment", {"order_id": 9011}), ("track_shipment", {"order_id": 9011})]},
                       "Your order #9011 was delivered. Support Team"], 9011, ["track"])
     assert len(r.tool_log) == 2 and r.tool_log[0]["result"] == r.tool_log[1]["result"]
+
+
+def test_reply_that_promises_a_human_is_rewritten_once(store):
+    add_ticket(9313, "Where is order #9011?", ALICE)
+    r, client = run(9313, [{"tool_calls": [("lookup_order", {"order_id": 9011})]},
+                           "I can't find order #9011. I'll forward this to a specialist.",
+                           "I could not find order #9011 on your account. Please check the number. Support Team"], 9011, ["track"])
+    assert r.promised_handoff is False and "forward" not in r.final_reply
+    assert "promises that the request will be forwarded" in client.requests[-1]["messages"][-1]["content"]
+
+def test_reply_that_keeps_promising_is_flagged(store):
+    add_ticket(9314, "Where is order #9011?", ALICE)
+    r, _ = run(9314, [{"tool_calls": [("lookup_order", {"order_id": 9011})]},
+                      "A specialist will contact you.", "We will forward this to our team."], 9011, ["track"])
+    assert r.promised_handoff is True
+
+def test_reply_may_name_the_order_that_our_code_resolved(store):
+    # the customer gave no order number; our code found order 9003, so naming it is not a made-up fact
+    add_ticket(9315, "I want a refund, I ordered something a while ago.", ALICE)
+    r, _ = run(9315, [{"tool_calls": [("issue_refund", {"order_id": 9003})]},
+                      "Sorry, order #9003 is past the 30-day refund window. Support Team"], 9003, ["refund"])
+    assert r.ungrounded == [] and "9003" in r.final_reply
+
+def test_prompt_contains_the_new_rules():
+    p = agent.SYSTEM_PROMPT.lower()
+    assert "name the order" in p and "never promise" in p and "not found on this account" in p

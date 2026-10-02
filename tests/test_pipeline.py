@@ -145,3 +145,13 @@ def test_provider_failing_in_the_middle_of_the_agent_is_escalated(store):
     out = process_ticket(9415, client=_CrashingClient([INTENT_TRACK]))
     assert (out["status"], out["reason"]) == ("waiting_for_human", "system_unavailable")
     assert "agent_error" in steps(9415)
+
+
+def test_promise_of_a_handoff_becomes_a_real_handoff(store):
+    add_ticket(9416, "Where is order #9011?", ALICE)
+    client = ScriptedClient([INTENT_TRACK, {"tool_calls": [("lookup_order", {"order_id": 9011})]},
+                             "I'll forward this to a specialist.", "A specialist will contact you."])
+    out = process_ticket(9416, client=client)
+    assert (out["status"], out["reason"]) == ("waiting_for_human", "agent_escalated")
+    assert results.get_result(9416)["reply_sent"] is False
+    assert "promise_check" in steps(9416)

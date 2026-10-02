@@ -79,6 +79,9 @@ def build_timeline(trail: list[dict]) -> list[dict]:
             else:
                 kind, title = "warn", "Grounding check blocked the reply"
                 detail = "; ".join(d.get("problems", [])) + (" - rewriting once." if not d.get("retry") else "")
+        elif step == "promise_check":
+            kind, title = "warn", "Reply blocked: it promised a human follow-up"
+            detail = "; ".join(d.get("matches", [])) + (" - rewriting once." if not d.get("retry") else "")
         elif step == "reply_sent_simulated":
             kind, title = "ok", "Reply sent (simulated)"
         elif step == "escalated":

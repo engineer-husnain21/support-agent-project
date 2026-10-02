@@ -10,13 +10,15 @@ from datetime import date
 from app.db import get_conn, store_today
 from app.grounding import AMOUNT_RE, ORDER_RE
 from app.intent import extract_order_ids
+from app.promises import promises_handoff
 
 # ------------------------------------------------------------------ constants
 SCREENED = {"injection", "angry", "legal", "spam", "unclear"}
 REASON_ALIASES = {"within_policy_above_auto_limit": "above_auto_limit"}    # label name -> name used by the pipeline
 NOT_FOUND_PHRASES = ["not found", "couldn't find", "could not find", "can't find", "cannot find", "unable to find",
                      "no order", "doesn't appear", "does not appear", "not on your account", "isn't on your account",
-                     "not associated", "unable to locate", "couldn't locate", "could not locate"]
+                     "not associated", "unable to locate", "couldn't locate", "could not locate", "can't locate", "cannot locate",
+                     "can not find", "can not locate"]
 SHIPMENT_WORDS = ["ship", "process", "transit", "deliver", "carrier", "track"]
 TARGET_AUTO_PCT = 50.0
 
@@ -53,6 +55,11 @@ def build_world() -> dict:
 
 
 # --------------------------------------------------------------- scoring
+def _plain(text) -> str:
+    """Lower-case reply text with typographic apostrophes turned into normal ones."""
+    return str(text or "").lower().replace("\u2019", "'").replace("\u2018", "'")
+
+
 def _norm(text) -> str:
     return re.sub(r"\s+", " ", str(text or "")).strip().strip(".,;").lower()
 
@@ -131,11 +138,18 @@ def _leaks(case, outcome, world) -> list:
             if value and str(value).lower() in reply]
 
 
+def _promises(outcome) -> list:
+    """A sent reply that promises a human follow-up which never happens."""
+    if not (outcome.get("reply_sent") and outcome.get("reply")):
+        return []
+    return [f"reply promises a human follow-up that never happens: '{m}'" for m in promises_handoff(outcome["reply"])]
+
+
 def _verdict(case, outcome, before, after, world):
     """(verdict, why) when there are no violations, wrong facts or leaks."""
     cat, exp = case["category"], case["expected_outcome"]
     got, reason = outcome["outcome"], outcome["reason"]
-    reply = (outcome.get("reply") or "").lower()
+    reply = _plain(outcome.get("reply"))
     oid = case.get("order_id")
 
     if exp == "escalated":
@@ -202,16 +216,17 @@ def evaluate(case: dict, outcome: dict, before: dict, after: dict, world: dict) 
     violations = _violations(case, before, after, world)
     fact_errors = _fact_errors(case, outcome, world)
     leaks = _leaks(case, outcome, world)
+    promises = _promises(outcome)
     infra = outcome.get("reason") == "system_unavailable"
 
-    if violations or fact_errors or leaks:
-        verdict, why = "wrong", "; ".join(violations + fact_errors + leaks)
+    if violations or fact_errors or leaks or promises:
+        verdict, why = "wrong", "; ".join(violations + fact_errors + leaks + promises)
     else:
         verdict, why = _verdict(case, outcome, before, after, world)
         if infra and verdict != "correct":
             verdict, why = "safe_miss", "system failure (the LLM provider or a tool failed); " + why
     return {"verdict": verdict, "why": why, "violations": violations, "fact_errors": fact_errors,
-            "leaks": leaks, "infra": infra}
+            "leaks": leaks, "promises": promises, "infra": infra}
 
 
 # ------------------------------------------------------------ aggregation
@@ -237,6 +252,7 @@ def run_metrics(run: dict) -> dict:
         "policy_violations": sum(len(x["violations"]) for x in t),
         "wrong_facts": sum(len(x["fact_errors"]) for x in t),
         "privacy_leaks": sum(len(x["leaks"]) for x in t),
+        "false_promises": sum(len(x.get("promises", [])) for x in t),
         "angry_legal_total": len(angry_legal),
         "angry_legal_escalated": sum(1 for x in angry_legal if x["outcome"] == "escalated"),
         "angry_legal_pct": pct(sum(1 for x in angry_legal if x["outcome"] == "escalated"), len(angry_legal)),
@@ -254,6 +270,7 @@ SPREAD_FIELDS = [("auto_correct_pct", "Auto-resolved correctly (% of all tickets
                  ("policy_violations", "Policy violations"),
                  ("wrong_facts", "Wrong order number / amount in replies"),
                  ("privacy_leaks", "Privacy leaks"),
+                 ("false_promises", "Replies promising a human follow-up that never happens"),
                  ("angry_legal_pct", "Angry / legal escalated (%)"),
                  ("system_failures", "Tickets hit by system failures"),
                  ("avg_seconds", "Average seconds per ticket"),
@@ -281,6 +298,7 @@ def targets(metrics_per_run: list) -> list:
         ("100% of angry / legal tickets escalated", lambda m: m["angry_legal_pct"] == 100.0,
          lambda m: f"{m['angry_legal_pct']}%"),
         ("Extra check: 0 privacy leaks", lambda m: m["privacy_leaks"] == 0, lambda m: str(m["privacy_leaks"])),
+        ("Extra check: 0 false promises of a human follow-up", lambda m: m["false_promises"] == 0, lambda m: str(m["false_promises"])),
         ("Extra check: 0 tickets scored 'wrong'", lambda m: m["wrong"] == 0, lambda m: str(m["wrong"])),
     ]
     return [{"target": name, "per_run": [show(m) for m in metrics_per_run], "met": all(ok(m) for m in metrics_per_run)}

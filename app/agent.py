@@ -12,7 +12,7 @@ import json
 import os
 from dataclasses import dataclass, field
 
-from app import actions, audit, grounding, intent, llm, tools
+from app import actions, audit, grounding, intent, llm, promises, tools
 
 MAX_STEPS = 6
 
@@ -27,6 +27,9 @@ Rules:
   if a tool says the request is denied, explain the reason politely and do not promise anything else.
 - If issue_refund says a human must approve it, tell the customer a specialist will review the request. Do not say the refund was issued.
 - If the request is unclear, unsafe, or something you cannot handle with the tools, call escalate_to_human.
+- Always name the order in your reply (for example "order #1043"), even when the customer did not give the number.
+- If a tool says the order was not found on this account, say that you could not find that order on their account and ask them to check the order number. Do not describe anything about that order.
+- Never promise that you will forward the request or that someone will contact the customer. If a human is needed, call escalate_to_human instead.
 - Do not mention tool names, policy codes, or internal systems.
 - Handle every request in the ticket. Keep the reply short, friendly and plain text, and sign it "Support Team"."""
 
@@ -65,6 +68,7 @@ class AgentRun:
     tool_failed: bool = False
     step_limit_hit: bool = False
     ungrounded: list = field(default_factory=list)     # problems left after the retry
+    promised_handoff: bool = False                     # the reply promised a human follow-up that would not happen
     llm_calls: int = 0
 
     def results(self) -> list:
@@ -135,17 +139,26 @@ def run_agent(ticket: dict, order_id: int | None, intents: list, client=None) ->
 
         if not calls:   # the agent wrote its final reply
             reply = (msg.content or "").strip()
-            check = grounding.check_reply(reply, run.results(), ticket_text)
+            # the resolved order number was found by our code, so the reply may mention it
+            check = grounding.check_reply(reply, run.results(), f"{ticket_text}\n\nOrder #{order_id}")
             audit.log(ticket_id, "grounding", {"ok": check.ok, "problems": check.problems, "retry": retried})
-            if check.ok or retried:
-                run.final_reply, run.ungrounded = reply, check.problems
+            promised = promises.promises_handoff(reply)
+            if promised:
+                audit.log(ticket_id, "promise_check", {"ok": False, "matches": promised, "retry": retried})
+            if (check.ok and not promised) or retried:
+                run.final_reply, run.ungrounded, run.promised_handoff = reply, check.problems, bool(promised)
                 return run
             retried = True
+            feedback = []
+            if check.problems:
+                feedback.append("Your reply contains facts that are not in the tool results: " + "; ".join(check.problems)
+                                + ". Rewrite the reply using ONLY facts returned by the tools.")
+            if promised:
+                feedback.append("Your reply promises that the request will be forwarded or that someone will contact the customer "
+                                "(" + "; ".join(promised) + "). You cannot do that. Remove the promise. "
+                                "If a human is really needed, call escalate_to_human instead.")
             messages.append({"role": "assistant", "content": reply})
-            messages.append({"role": "user", "content":
-                             "Your reply contains facts that are not in the tool results: "
-                             + "; ".join(check.problems) +
-                             ". Rewrite the reply using ONLY facts returned by the tools."})
+            messages.append({"role": "user", "content": " ".join(feedback)})
             continue
 
         messages.append({"role": "assistant", "content": msg.content, "tool_calls": [
