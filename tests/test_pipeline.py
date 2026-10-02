@@ -130,3 +130,18 @@ class _BrokenClient:
         def boom(**kwargs):
             raise ConnectionError("network down")
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=boom))
+
+
+class _CrashingClient(ScriptedClient):
+    """The first call (intent) works, the second one (agent) fails like a rate-limited provider."""
+    def _create(self, **kwargs):
+        if self.calls >= 1:
+            raise ConnectionError("rate limit reached")
+        return super()._create(**kwargs)
+
+
+def test_provider_failing_in_the_middle_of_the_agent_is_escalated(store):
+    add_ticket(9415, "Where is my order #9011?", BOB)
+    out = process_ticket(9415, client=_CrashingClient([INTENT_TRACK]))
+    assert (out["status"], out["reason"]) == ("waiting_for_human", "system_unavailable")
+    assert "agent_error" in steps(9415)

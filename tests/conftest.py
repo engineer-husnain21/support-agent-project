@@ -3,8 +3,11 @@ conftest.py -- builds a throwaway copy of the database for each test and adds ou
 The tests never touch the real data/store.db.
 """
 import json
+import os
 import shutil
 import sqlite3
+import subprocess
+import sys
 from datetime import timedelta
 from types import SimpleNamespace
 
@@ -15,10 +18,21 @@ ALICE = "alice.test@example.com"
 BOB = "bob.test@example.com"
 
 
+@pytest.fixture(scope="session")
+def pristine_db(tmp_path_factory):
+    """A brand-new mock store, built once per test session. The tests never copy data/store.db,
+    so whatever you did in the UI (refunds, processed tickets) cannot change the test results."""
+    path = tmp_path_factory.mktemp("pristine") / "pristine.db"
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    subprocess.run([sys.executable, "make_mock_data.py"], cwd=root, env={**os.environ, "STORE_DB": str(path)},
+                   check=True, capture_output=True)
+    return path
+
+
 @pytest.fixture()
-def store(tmp_path, monkeypatch):
+def store(tmp_path, monkeypatch, pristine_db):
     dst = tmp_path / "test_store.db"
-    shutil.copy(db.DEFAULT_DB, dst)          # make_mock_data.py must have been run first
+    shutil.copy(pristine_db, dst)
     monkeypatch.setenv("STORE_DB", str(dst))
     today = db.store_today()
 

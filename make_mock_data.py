@@ -16,7 +16,8 @@ from datetime import date, datetime, timedelta
 random.seed(13)                      # same seed = same data on every run
 TODAY = date.today()
 os.makedirs("data", exist_ok=True)
-DB_PATH = "data/store.db"
+DB_PATH = os.environ.get("STORE_DB", "data/store.db")   # the evaluation runs use their own database files
+os.makedirs(os.path.dirname(DB_PATH) or ".", exist_ok=True)
 if os.path.exists(DB_PATH):
     os.remove(DB_PATH)
 
@@ -313,4 +314,4 @@ with open("data/refund_policy.md", "w", encoding="utf-8") as f:
 
 print(f"Done. store_today = {TODAY}")
 print(f"customers={len(customers)}, orders={len(orders)}, shipments={len(shipments)}, tickets={len(tickets)}")
-print("Files: data/store.db, data/refund_policy.md")
+print(f"Files: {DB_PATH}, data/refund_policy.md")

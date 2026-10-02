@@ -85,6 +85,8 @@ def build_timeline(trail: list[dict]) -> list[dict]:
             kind = "warn"
             title = f"Sent to the human queue: {d.get('reason', '').replace('_', ' ')}"
             detail = _reason(d.get("reason"))
+        elif step == "agent_error":
+            kind, title, detail = "stop", "The agent stopped because of an error", d.get("error")
         elif step == "human_refund":
             if d.get("executed"):
                 kind, title, detail = "ok", f"Human-approved refund executed: {_money(d.get('amount'))} (simulated)", f"Approved by: {d.get('approved_by')}"

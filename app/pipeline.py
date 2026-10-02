@@ -83,7 +83,12 @@ def _process(t: dict, client=None) -> dict:
         return _escalate(t, "unsupported_request", intents=i["intents"], order_id=order_id)
 
     # 4) Agent with tools (policy is enforced inside the tools)
-    run = agent.run_agent(t, order_id, i["intents"], client=client)
+    try:
+        run = agent.run_agent(t, order_id, i["intents"], client=client)
+    except Exception as e:   # e.g. the LLM provider failed or hit its rate limit in the middle of the run
+        audit.log(ticket_id, "agent_error", {"error": type(e).__name__})
+        return _escalate(t, "system_unavailable", intents=i["intents"], order_id=order_id,
+                         detail=f"agent error: {type(e).__name__}")
     used = [e["name"] for e in run.tool_log]
 
     if run.tool_failed:
