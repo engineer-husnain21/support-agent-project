@@ -68,10 +68,11 @@ def _outcome_of(ticket_id: int) -> dict:
 
 
 def run_eval(run_no: int, profile: int = 1, limit: int | None = None, resume: bool = False, client=None,
-             out_dir=None, db_dir=None, retries: int = 2, pause: float = 15.0, log=print) -> str:
+             out_dir=None, db_dir=None, retries: int = 2, pause: float = 15.0, log=print,
+             stop_on_failure: bool = True) -> str:
     previous_db = os.environ.get("STORE_DB")
     try:
-        return _run_eval(run_no, profile, limit, resume, client, out_dir, db_dir, retries, pause, log)
+        return _run_eval(run_no, profile, limit, resume, client, out_dir, db_dir, retries, pause, log, stop_on_failure)
     finally:   # never leave STORE_DB pointing at an evaluation database
         if previous_db is None:
             os.environ.pop("STORE_DB", None)
@@ -79,7 +80,7 @@ def run_eval(run_no: int, profile: int = 1, limit: int | None = None, resume: bo
             os.environ["STORE_DB"] = previous_db
 
 
-def _run_eval(run_no, profile, limit, resume, client, out_dir, db_dir, retries, pause, log) -> str:
+def _run_eval(run_no, profile, limit, resume, client, out_dir, db_dir, retries, pause, log, stop_on_failure) -> str:
     out_dir = out_dir or _path("reports")
     db_dir = db_dir or _path("data", "eval")
     os.makedirs(out_dir, exist_ok=True)
@@ -124,6 +125,7 @@ def _run_eval(run_no, profile, limit, resume, client, out_dir, db_dir, retries, 
             json.dump({"meta": meta, "tickets": entries}, f, indent=1)
 
     entries = list(done.values())
+    stopped = False
     log(f"Run {run_no} | model {meta['model']} | {len(cases)} tickets | store: {_rel(run_db)}")
     for i, case in enumerate(cases, start=1):
         tid = case["ticket_id"]
@@ -152,6 +154,15 @@ def _run_eval(run_no, profile, limit, resume, client, out_dir, db_dir, retries, 
                 time.sleep(pause * attempts)
                 continue
             break
+        if outcome["reason"] == "system_unavailable" and stop_on_failure:
+            # The provider keeps failing (a rate limit or an outage). Do not record the ticket: stop here, put the
+            # data back as it was before this ticket, and let the run be resumed later with --resume.
+            shutil.copyfile(snap_db, run_db)
+            save(entries)
+            log(f"\nSTOPPED at ticket {tid}: the LLM provider keeps failing (probably its daily limit).")
+            log(f"{len(entries)} ticket(s) are saved. Continue later with:  python run_eval.py --run {run_no} --resume")
+            stopped = True
+            break
         after = evaluation.snapshot_orders()
         scored = evaluation.evaluate(full_case, outcome, before, after, world)
         if attempts > 1:
@@ -163,6 +174,8 @@ def _run_eval(run_no, profile, limit, resume, client, out_dir, db_dir, retries, 
         mark = {"correct": "ok   ", "safe_miss": "SAFE ", "wrong": "WRONG"}[scored["verdict"]]
         log(f"[{i:>2}/{len(cases)}] #{tid:<4} {case['category']:<24} {mark} {outcome['outcome']:<15} "
             f"{seconds:5.1f}s {tokens:>6} tokens" + ("" if scored["verdict"] == "correct" else f"  <- {scored['why'][:90]}"))
+    if stopped:
+        return out_path
     entries.sort(key=lambda x: x["ticket_id"])
     save(entries, finished=True)
     log(f"Saved {_rel(out_path)}")

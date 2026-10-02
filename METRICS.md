@@ -60,7 +60,7 @@ Every number is shown for each run, together with the minimum, mean and maximum 
 
 ## 6. System failures
 
-If the LLM provider fails (for example a rate limit), the ticket is retried after a pause, from a clean copy of the data. Tickets that still fail are scored as safe misses and are listed separately as "system failures", so provider problems are not mixed up with agent mistakes.
+If the LLM provider fails (for example a rate limit), the ticket is retried after a pause, from a clean copy of the data. In the official runs, a ticket that still fails after the retries STOPS the run: nothing is recorded for that ticket, the data is put back as it was, and the run is continued later with `--resume` (the same model, the same data). A provider outage can therefore never silently lower the numbers. (Only the experimental option `--keep-going` scores such tickets as safe misses, listed separately as "system failures".)
 
 ## 7. Failed tickets
 
@@ -81,3 +81,5 @@ The definitions in sections 1-8 were committed before run 1. Run 1 (40 tickets) 
 | Ticket 34 (customer gave no order number): the reply did not say which order it was about. | Agent weakness. | The agent prompt now requires the reply to name the order. The resolved order number is also accepted by the grounding check, because our own code found it. |
 | Ticket 114 (someone else's order): the reply said "I can’t locate order #1007" and was scored wrong. | Scorer bug: the keyword check did not understand the typographic apostrophe and had no "locate" phrases. | The scorer now normalises apostrophes and also accepts "can't locate" / "cannot locate". The rule itself (the reply must say the order was not found) is unchanged. |
 | Ticket 114: the same reply also said "I'll forward this to a specialist" although the ticket was NOT handed to anyone. | Real agent flaw that the scorer did not detect. | New guard in the agent: a reply that promises a human follow-up is rewritten once, and if it still does, the ticket is really escalated. The evaluation counts such a reply as **wrong** (the third extra check). This makes the evaluation stricter, not more lenient. |
+
+Process safeguard added after run 2 (it does not change any definition above): official runs stop and can be resumed when the provider keeps failing, instead of recording the failures. If a run was resumed, the report says so only through the finished time; the tickets already scored are not scored again.

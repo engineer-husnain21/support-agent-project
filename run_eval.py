@@ -10,6 +10,10 @@ Then:  python report.py
 Useful options:
     --limit 3      quick check of the setup on the first 3 tickets (saved as dryrun_N.json, ignored by the report)
     --resume       continue an interrupted run instead of starting it again
+    --keep-going   do not stop when the provider keeps failing (only for experiments; official runs should stop)
+
+If the provider keeps failing (for example its daily limit is used up), the run STOPS by itself, keeps the finished tickets,
+and can be continued later with --resume. A provider outage can therefore never silently lower the numbers.
 """
 import argparse
 
@@ -24,8 +28,9 @@ if __name__ == "__main__":
     ap.add_argument("--profile", type=int, default=1, help="1 = LLM_* in .env, 2 = LLM2_* in .env")
     ap.add_argument("--limit", type=int, default=None, help="only the first N tickets (dry run)")
     ap.add_argument("--resume", action="store_true", help="continue an interrupted run")
+    ap.add_argument("--keep-going", action="store_true", help="do not stop when the provider keeps failing")
     args = ap.parse_args()
 
     load_dotenv()
     llm.use_profile(args.profile)
-    run_eval(args.run, profile=args.profile, limit=args.limit, resume=args.resume)
+    run_eval(args.run, profile=args.profile, limit=args.limit, resume=args.resume, stop_on_failure=not args.keep_going)

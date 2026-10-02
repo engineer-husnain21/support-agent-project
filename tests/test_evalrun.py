@@ -48,3 +48,36 @@ def test_store_db_variable_is_restored_after_a_run(tmp_path, monkeypatch):
     evalrun.run_eval(1, limit=2, client=SmartFakeClient(), out_dir=str(tmp_path / "r"), db_dir=str(tmp_path / "e"),
                      retries=0, pause=0, log=lambda *a: None)
     assert os.environ["STORE_DB"] == "keep-me.db"
+
+
+class _AlwaysFails:
+    """A provider that is down (or whose daily limit is used up)."""
+    def __init__(self):
+        def boom(**kwargs):
+            raise ConnectionError("daily limit reached")
+        from types import SimpleNamespace
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=boom))
+
+
+def test_run_stops_when_the_provider_keeps_failing_and_can_be_resumed(tmp_path, monkeypatch):
+    out_dir, db_dir = str(tmp_path / "r"), str(tmp_path / "e")
+    kw = dict(limit=3, out_dir=out_dir, db_dir=db_dir, retries=0, pause=0, log=lambda *a: None)
+
+    path = evalrun.run_eval(1, client=_AlwaysFails(), **kw)
+    saved = json.load(open(path))
+    assert saved["meta"]["complete"] is False and len(saved["tickets"]) < 3
+    first_done = len(saved["tickets"])
+
+    evalrun.run_eval(1, client=SmartFakeClient(), resume=True, **kw)      # later, the provider works again
+    monkeypatch.delenv("STORE_DB", raising=False)
+    done = json.load(open(path))["tickets"]
+    assert len(done) == 3 and {t["ticket_id"] for t in done} == {2, 5, 9}
+    assert all(t["verdict"] == "correct" for t in done)                   # nothing was damaged by the failed attempt
+    assert first_done < 3
+
+
+def test_keep_going_scores_failures_as_safe_misses(tmp_path):
+    path = evalrun.run_eval(1, limit=2, client=_AlwaysFails(), out_dir=str(tmp_path / "r"), db_dir=str(tmp_path / "e"),
+                            retries=0, pause=0, log=lambda *a: None, stop_on_failure=False)
+    data = json.load(open(path))["tickets"]
+    assert len(data) == 2 and data[0]["infra"] is True and data[0]["verdict"] in ("safe_miss", "correct")
