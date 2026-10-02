@@ -60,7 +60,7 @@ class SmartFakeClient:
             if "refund" in intents:
                 calls.append(_call(2, "issue_refund", {"order_id": order_id}))
             if "address_change" in intents:
-                m = re.search(r"(\d+ [A-Z][\w ]+ (?:St|Ave|Rd|Ln|Dr|Blvd)[^?\n]*?)(?: instead)?[?.]?\s*$", ticket_text.strip())
+                m = re.search(r"\bto (\d+ [^?\n]+?)(?: instead)?[?.]?\s*$", ticket_text.strip())
                 calls.append(_call(3, "update_address", {"order_id": order_id, "new_address": m.group(1) if m else "unknown"}))
             if not calls:
                 calls.append(_call(4, "escalate_to_human", {"reason": "cannot classify"}))

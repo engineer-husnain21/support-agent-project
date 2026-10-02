@@ -8,6 +8,7 @@ Rule: Days 4 and 5 are for BUILDING. Day 6 (Monday morning) is for opening this 
 ## 1. Before every run (checklist)
 
 - [ ] `python reset_store.py` (clean store: no old refunds, no old audit trail)
+- [ ] `python demo_cases.py` (creates the demo tickets 201 to 216, one for every case below)
 - [ ] `python -m pytest` (everything passes)
 - [ ] Server running: `python run_server.py`, and the browser open at http://127.0.0.1:8000 (Inbox tab)
 - [ ] `FAIL_TOOL` is NOT set (PowerShell: `Remove-Item Env:FAIL_TOOL`)
@@ -35,7 +36,7 @@ If a case fails live: stay calm, say "this one goes into the limitations", and m
 
 Order: success first, then edge, then abuse.
 Status column: `L` = already ran live with the real LLM, `T` = only covered by unit tests so far (needs a live run).
-`demo_cases.py` (built on Day 5) will create these tickets with the exact wording below.
+`python demo_cases.py` creates one ticket for every case (ids 201 to 216, see section 3b).
 
 ### Success
 
@@ -68,21 +69,47 @@ Status column: `L` = already ran live with the real LLM, `T` = only covered by u
 
 ---
 
+### 3b. Which ticket is which case
+
+| Case | Ticket | What to do |
+|---|---|---|
+| 1 | #201 | Process |
+| 2 | #202 | Process |
+| 3 | #203 | Process |
+| 4 | #204 | Process, then Approve (in the ticket or in the Human queue) |
+| 5 | #205 | Process (goes to the Human queue) |
+| 6 | #206 | Process (polite refusal) |
+| 7 | #207 and #216 | Process (#207: asks which order; #216: finds the only order by email) |
+| 8 | #208 | Process |
+| 9 | #209 | Process (refused, already shipped) |
+| 10 | #210 | Process (stopped by the screen) |
+| 11 | #211 | Process ("not found on your account") |
+| 12 | #212 and #215 | Process (angry, and the legal threat) |
+| 13 | #213 | Special setup below, then Process |
+| 14 | #214 | Special setup below (do NOT press Process) |
+
+Open any of them directly with `http://127.0.0.1:8000/#t201` (replace 201 with the ticket number).
+
 ## 4. Special setups (do these before the case, undo after)
 
-**Case 13 (tool failure)** - PowerShell:
+**Case 13 (tool failure)** - the switch must be set in the terminal that STARTS the server:
 
-```
-$env:FAIL_TOOL="track_shipment"
-```
-Run a tracking ticket, show it escalated with reason "system unavailable". Then undo:
-```
-Remove-Item Env:FAIL_TOOL
-```
+1. Stop the server (Ctrl+C) in its terminal.
+2. In that same terminal: `$env:FAIL_TOOL="track_shipment"` and then `python run_server.py`
+3. Open ticket #213, press Process: it is escalated with reason "system unavailable" and nothing is guessed.
+4. Undo: stop the server, run `Remove-Item Env:FAIL_TOOL`, start the server again.
+
+Do this case LAST in the demo (or in a separate server run), so the other cases are not affected.
 
 **Case 14 (wrong amount in a reply)** - the real LLM will not make this mistake on demand, so the demo
-uses a scripted fake LLM that deliberately writes a wrong amount (for example `$99.00`).
-Say it out loud: "Here I simulate an LLM mistake. The grounding check compares every amount, date and order number with the tool results and blocks the reply."
+uses a script with a SIMULATED LLM that deliberately writes a wrong date and a wrong amount ($99.00):
+
+```
+python demo_grounding.py            (the rewrite is correct: auto-resolved)
+python demo_grounding.py --persist  (the AI keeps making the mistake: sent to a human)
+```
+Then refresh ticket #214 in the browser and read the step timeline (it shows the blocked reply).
+Say it out loud: "The LLM's mistake is simulated here. The grounding check compares every amount, date and order number with the tool results and blocks the reply."
 
 ---
 
