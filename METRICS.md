@@ -71,6 +71,8 @@ The report lists EVERY ticket that was not scored **correct** in any run, with t
 - The mock tickets were written from templates, and the screen rules were written while looking at those templates. Real tickets would be messier, so the screen results are optimistic.
 - 40 tickets is small. A single ticket moves a percentage by 2.5 points.
 - The 3 runs may use different LLM providers (free daily limits). The report states the provider and model of every run.
+- The agent was improved after run 1, using failures from this same test set (section 9). The final numbers are therefore optimistic, not a measurement on unseen tickets. The 110 labelled tickets outside the test set have never been used for tuning and could serve as a fairer check.
+- The model runs with temperature 0, so the three runs are nearly identical. The spread shows stability, not three independent exams.
 
 ## 9. Changes made after the first run (kept for transparency)
 

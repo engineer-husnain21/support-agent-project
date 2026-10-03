@@ -194,6 +194,7 @@ def test_report_text_has_no_placeholders_and_catches_them():
     text, summary = ev.render_report([fake_run(1, ROWS), fake_run(2, ROWS)])
     assert "## 2. Targets" in text and "Met in every run" in text and summary["targets"]
     ev.assert_no_placeholders(text)
+    assert "optimistic" in text and "temperature 0" in text           # the report states its own weaknesses
     with pytest.raises(ValueError):
         ev.assert_no_placeholders("The number is [[TBD]]")
     with pytest.raises(ValueError):

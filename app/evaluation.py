@@ -434,6 +434,10 @@ def render_report(runs: list) -> tuple[str, dict]:
     add("- Reply checks are keyword checks. Tone and writing quality are not scored.")
     add("- Refunds and emails are simulated.")
     add("- Runs may use different LLM providers (free daily limits); see section 1.")
+    add("- The agent was improved after run 1, using the two wrong replies of that run, which belong to this same test set (METRICS.md, section 9). "
+        "The final numbers are therefore optimistic: they are not a measurement on tickets the agent has never seen.")
+    add("- The model runs with temperature 0, so the runs are nearly identical. The spread shows how stable the setup is; "
+        "it is not three independent exams.")
     add("")
     text = "\n".join(L)
     assert_no_placeholders(text)
