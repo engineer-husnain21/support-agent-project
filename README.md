@@ -24,6 +24,8 @@ Ticket -> Screen -> Intent -> Find the order -> Agent + tools -> Policy check ->
 | Promise guard (`app/promises.py`) | No | A reply must not promise a human follow-up that will not happen. |
 | Human queue (`app/human_queue.py`) | No | Approve or reject. Approval can lift the $50 limit only; the 30-day rule and "already refunded" still apply. |
 
+> Which free resources are used, where to get them and how to set them up: see **`resource-setup-guide.md`**.
+
 ## Setup (Windows PowerShell)
 
 ```
@@ -78,6 +80,7 @@ data/           eval_set.json and refund_policy.md (the databases are created by
 reports/        evaluation runs, the report, and the archived first run
 METRICS.md      what "resolved" means, written before the runs
 DEMO_PLAN.md    the presentation plan
+resource-setup-guide.md   the free resources used and how to set them up
 ```
 
 ## Known limits
