@@ -230,3 +230,48 @@ a.link:hover { text-decoration: underline; }
 @media (max-width: 1000px) { .charts { grid-template-columns: 1fr; } .brand { min-width: 0; } .brand-sub { display: none; } .sim-pill { display: none; } }
 
 .reason-tag { margin-left: auto; font-size: 11.5px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: rgba(255, 255, 255, .75); border: 1px solid rgba(0, 0, 0, .08); color: var(--text-2); }
+
+/* ------------------------------------------------------------ Review AI */
+.count-badge.info { background: var(--blue); }
+.review { display: grid; grid-template-columns: 350px minmax(0, 1fr); }
+.rv-list { background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
+.rv-progress { padding: 4px 16px 12px; }
+.rv-progress .bar { height: 8px; border-radius: 999px; background: var(--slate-soft); overflow: hidden; margin-top: 8px; }
+.rv-progress .bar > i { display: block; height: 100%; background: linear-gradient(90deg, #34d399, #16a34a); border-radius: 999px; }
+.rv-progress p { font-size: 12.5px; color: var(--muted); }
+.rv-main { min-height: 0; display: flex; flex-direction: column; background: var(--bg); }
+.rv-scroll { flex: 1; overflow-y: auto; padding: 22px 26px 24px; }
+.rv-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px; align-items: start; max-width: 1180px; margin: 0 auto; }
+.rv-col { display: flex; flex-direction: column; gap: 16px; }
+.rv-head { max-width: 1180px; margin: 0 auto 16px; display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+.rv-head h2 { font-size: 21px; letter-spacing: -.02em; }
+.facts { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13.5px; }
+.facts th { padding: 7px 10px; }
+.facts td { padding: 8px 10px; }
+.fact-ok { color: var(--green); font-weight: 700; }
+.fact-bad { color: var(--red); font-weight: 700; }
+.decision { display: flex; gap: 12px; padding: 11px 0; border-top: 1px solid #eef1f6; }
+.decision:first-of-type { border-top: 0; }
+.decision .ico { margin-top: 2px; }
+.decision b { display: block; }
+.decision span.why { color: var(--muted); font-size: 13px; }
+.rv-bar { border-top: 1px solid var(--border); background: var(--surface); padding: 14px 26px; box-shadow: 0 -6px 18px rgba(15, 23, 42, .05); }
+.rv-bar-inner { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+.rv-buttons { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.rv-buttons kbd { font-size: 11px; background: rgba(0, 0, 0, .1); border-radius: 5px; padding: 1px 6px; margin-left: 4px; }
+.btn-amber { background: var(--amber-soft); border-color: #f6d9a8; color: #92400e; }
+.btn-amber:hover { background: #ffe9bd; }
+.rv-note { flex: 1; min-width: 220px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 10px; font: inherit; outline: none; }
+.rv-note:focus { border-color: #a5b4fc; box-shadow: 0 0 0 3px rgba(99, 102, 241, .15); }
+.rv-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; padding: 12px; border-radius: 12px; background: var(--red-soft); border: 1px solid #f4c3c3; }
+.rv-form select { padding: 9px 12px; border-radius: 10px; border: 1px solid #f4c3c3; font: inherit; background: #fff; min-width: 260px; }
+.rv-state { display: flex; gap: 10px; align-items: center; color: var(--muted); font-size: 13px; flex-wrap: wrap; }
+.hint { color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+.val-card { padding: 20px 22px; margin-top: 14px; }
+.val-row { display: flex; gap: 40px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+.val-num b { display: block; font-size: 30px; letter-spacing: -.03em; line-height: 1.1; }
+.val-num span { color: var(--muted); font-size: 12.5px; font-weight: 600; }
+.val-bar { flex: 1; min-width: 240px; }
+.val-bar .bar { height: 12px; border-radius: 999px; background: var(--slate-soft); overflow: hidden; display: flex; }
+.val-bar .bar i { display: block; height: 100%; }
+@media (max-width: 1280px) { .rv-grid { grid-template-columns: 1fr; } .review { grid-template-columns: 320px minmax(0, 1fr); } }

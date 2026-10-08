@@ -23,7 +23,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from app import audit, human_queue, intent, pipeline, results, stats, tickets, timeline, tools
+from app import audit, evidence, human_queue, intent, pipeline, results, reviews, stats, tickets, timeline, tools
 from app.db import get_conn
 
 load_dotenv()
@@ -81,7 +81,7 @@ def _ticket_rows(where: str = "", params: tuple = ()) -> list[dict]:
             "created_at": r["created_at"], "status_key": key, "status_label": label,
             "reason": r["reason"], "priority": r["priority"] or "normal",
             "summary": r["summary"], "suggested_reply": r["reply"] if r["status"] == "waiting_for_human" else None,
-            "processed": r["status"] is not None,
+            "processed": r["status"] is not None, "status": r["status"],
         })
     return out
 
@@ -201,6 +201,67 @@ def reject(ticket_id: int, body: RejectBody):
     if not out["ok"]:
         raise HTTPException(400, out.get("error", "reject failed"))
     return ticket_detail(ticket_id)
+
+
+# ----------------------------------------------------------------- review of AI-resolved tickets
+REVIEW_FILTERS = ("to_review", "correct", "incorrect", "unsure", "all")
+
+
+@app.get("/api/review/queue")
+def review_queue(filter: str = "to_review"):
+    """The tickets the AI resolved (or answered with a question), with the state of their review."""
+    if filter not in REVIEW_FILTERS:
+        raise HTTPException(400, "unknown filter")
+    states = reviews.all_states()
+    items, counts = [], {"to_review": 0, "correct": 0, "incorrect": 0, "unsure": 0, "all": 0}
+    for r in sorted(_ticket_rows(), key=lambda r: r["ticket_id"]):
+        if r["status"] not in reviews.AI_RESOLVED:
+            continue
+        rv = states.get(r["ticket_id"])
+        state = "to_review" if (rv is None or rv["stale"]) else rv["verdict"]
+        counts[state] += 1
+        counts["all"] += 1
+        if filter in ("all", state):
+            items.append({"ticket_id": r["ticket_id"], "customer_name": r["customer_name"], "customer_email": r["customer_email"],
+                          "snippet": r["snippet"], "created_at": r["created_at"], "kind": "question" if r["status"] == "asked_question" else "resolved",
+                          "state": state, "outdated": bool(rv and rv["stale"]), "review": rv})
+    return {"counts": counts, "items": items}
+
+
+@app.get("/api/review/{ticket_id}")
+def review_detail(ticket_id: int):
+    result = results.get_result(ticket_id)
+    if result is None or result["status"] not in reviews.AI_RESOLVED:
+        raise HTTPException(400, "Only tickets that the AI resolved can be reviewed.")
+    d = ticket_detail(ticket_id)
+    d["evidence"] = evidence.build_evidence(ticket_id)
+    d["review"] = reviews.get_review(ticket_id)
+    d["reasons"] = reviews.REASONS
+    return d
+
+
+class ReviewBody(BaseModel):
+    verdict: str
+    reason: str | None = None
+    note: str | None = None
+    reviewer: str = "reviewer"
+
+
+@app.post("/api/review/{ticket_id}")
+def save_review(ticket_id: int, body: ReviewBody):
+    try:
+        rv = reviews.save_review(ticket_id, body.verdict, body.reason, body.note, body.reviewer)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    audit.log(ticket_id, "human_review", {"verdict": rv["verdict"], "reason": rv["reason"], "reason_text": rv["reason_text"],
+                                          "note": rv["note"], "by": body.reviewer})
+    return review_detail(ticket_id)
+
+
+@app.delete("/api/review/{ticket_id}")
+def clear_review(ticket_id: int):
+    reviews.delete_review(ticket_id)
+    return review_detail(ticket_id)
 
 
 @app.get("/api/stats")

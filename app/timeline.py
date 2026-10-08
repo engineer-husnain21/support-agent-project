@@ -90,6 +90,11 @@ def build_timeline(trail: list[dict]) -> list[dict]:
             detail = _reason(d.get("reason"))
         elif step == "agent_error":
             kind, title, detail = "stop", "The agent stopped because of an error", d.get("error")
+        elif step == "human_review":
+            v = d.get("verdict")
+            kind = {"correct": "ok", "incorrect": "stop", "unsure": "warn"}.get(v, "info")
+            title = f"Reviewed by {d.get('by')}: marked {v}"
+            detail = d.get("reason_text") or d.get("note")
         elif step == "human_refund":
             if d.get("executed"):
                 kind, title, detail = "ok", f"Human-approved refund executed: {_money(d.get('amount'))} (simulated)", f"Approved by: {d.get('approved_by')}"

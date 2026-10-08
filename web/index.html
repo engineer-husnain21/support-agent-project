@@ -17,6 +17,7 @@
     </div>
     <nav class="tabs" id="tabs">
       <button class="tab active" data-view="inbox"><span class="ico" data-icon="inbox"></span>Inbox</button>
+      <button class="tab" data-view="review"><span class="ico" data-icon="review"></span>Review AI<span class="count-badge info" id="review-badge" hidden>0</span></button>
       <button class="tab" data-view="queue"><span class="ico" data-icon="users"></span>Human queue<span class="count-badge" id="queue-badge" hidden>0</span></button>
       <button class="tab" data-view="dashboard"><span class="ico" data-icon="chart"></span>Dashboard</button>
     </nav>
@@ -41,6 +42,7 @@
     <aside class="col col-side" id="side"></aside>
   </main>
 
+  <main id="view-review" class="view review" hidden></main>
   <main id="view-queue" class="view page" hidden></main>
   <main id="view-dashboard" class="view page" hidden></main>
 

@@ -112,3 +112,53 @@ def test_stats_and_audit_endpoints(client, monkeypatch):
     assert s["processed"] == 1 and s["escalated"] == 1
     a = client.get("/api/audit?limit=10").json()
     assert a and a[0]["ticket_id"] == 9611 and {"kind", "title"} <= set(a[0])
+
+
+# ------------------------------------------------------------- review of AI-resolved tickets
+def resolve_one(client, monkeypatch, tid, email=BOB, order=9011):
+    add_ticket(tid, f"Where is my order #{order}?", email)
+    use_llm(monkeypatch, [INTENT_TRACK, {"tool_calls": [("track_shipment", {"order_id": order})]},
+                          f"Your order #{order} was delivered. Support Team"])
+    return client.post(f"/api/tickets/{tid}/process").json()
+
+
+def test_review_queue_lists_only_ai_resolved_tickets(client, monkeypatch):
+    resolve_one(client, monkeypatch, 9701)
+    add_ticket(9702, "This is UNACCEPTABLE!!! I want a manager NOW.", ALICE)
+    use_llm(monkeypatch, [])
+    client.post("/api/tickets/9702/process")                                  # escalated: must NOT be reviewable
+    q = client.get("/api/review/queue?filter=all").json()
+    assert [i["ticket_id"] for i in q["items"]] == [9701] and q["counts"]["to_review"] == 1
+    assert client.get("/api/review/9702").status_code == 400
+
+def test_review_detail_has_the_evidence(client, monkeypatch):
+    resolve_one(client, monkeypatch, 9703)
+    d = client.get("/api/review/9703").json()
+    assert d["result"]["reply"].startswith("Your order #9011") and d["review"] is None
+    assert d["evidence"]["facts_ok"] is True and any(f["value"] == "#9011" for f in d["evidence"]["facts"])
+    assert d["evidence"]["order_now"]["order_id"] == 9011 and d["timeline"]
+    assert "wrong_fact" in d["reasons"]
+
+def test_review_flow_correct_incorrect_clear(client, monkeypatch):
+    resolve_one(client, monkeypatch, 9704)
+    d = client.post("/api/review/9704", json={"verdict": "correct", "reviewer": "zubair"}).json()
+    assert d["review"]["verdict"] == "correct" and d["review"]["reviewer"] == "zubair"
+    assert client.get("/api/review/queue").json()["counts"]["to_review"] == 0         # it left the 'to review' list
+    assert client.get("/api/review/queue?filter=correct").json()["counts"]["correct"] == 1
+    assert any("marked correct" in s["title"] for s in d["timeline"])                 # the review is in the step timeline
+
+    bad = client.post("/api/review/9704", json={"verdict": "incorrect"})              # a reason is required
+    assert bad.status_code == 400
+    ok = client.post("/api/review/9704", json={"verdict": "incorrect", "reason": "wrong_fact", "note": "date looks wrong"}).json()
+    assert ok["review"]["reason_text"] == "Wrong fact in the reply"
+    assert client.get("/api/stats").json()["review"]["incorrect"] == 1
+
+    cleared = client.delete("/api/review/9704").json()
+    assert cleared["review"] is None and client.get("/api/review/queue").json()["counts"]["to_review"] == 1
+
+def test_review_of_a_ticket_that_is_not_ai_resolved_is_refused(client):
+    add_ticket(9705, "hello", BOB)
+    assert client.post("/api/review/9705", json={"verdict": "correct"}).status_code == 400
+
+def test_unknown_filter(client):
+    assert client.get("/api/review/queue?filter=nope").status_code == 400

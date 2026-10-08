@@ -23,6 +23,10 @@ const P = {
   info: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
   trend: '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>',
 };
+Object.assign(P, {
+  help: '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+  review: '<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><polyline points="9 14 11 16 15 12"/>',
+});
 const svg = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true">${P[name] || ""}</svg>`;
 const ico = (name) => `<span class="ico">${svg(name)}</span>`;
 document.querySelectorAll("[data-icon]").forEach((el) => { el.innerHTML = svg(el.dataset.icon); });
@@ -78,6 +82,8 @@ async function api(path, options = {}) {
 const state = { view: "inbox", tickets: [], filter: "all", search: "", selectedId: null, detail: null,
                 busy: new Set(), editing: false, stats: null, queue: [], audit: [], processingNext: false };
 
+state.review = { counts: { to_review: 0, correct: 0, incorrect: 0, unsure: 0, all: 0 }, items: [], filter: "to_review",
+                 selectedId: null, detail: null, form: false, busy: false };
 const FILTERS = [["all", "All"], ["new", "New"], ["auto_resolved", "Auto-resolved"], ["escalated", "Escalated"],
                  ["waiting", "Waiting for human"], ["human_resolved", "Human resolved"]];
 
@@ -280,6 +286,21 @@ function donut(s) {
   return `<div class="donut-wrap">${svgHtml}<div class="legend">${legend}</div></div>`;
 }
 
+function reviewPanel(s) {
+  const v = s.review;
+  if (!v || !v.ai_resolved) return "";
+  const pct = (n) => (v.ai_resolved ? (100 * n) / v.ai_resolved : 0);
+  const reasons = v.reasons.length ? `<p class="hint" style="margin-top:12px">Incorrect because: ${v.reasons.map((r) => esc(r.text) + " (" + r.count + ")").join(", ")}</p>` : "";
+  return `<div class="card val-card"><div class="card-head"><div><h3 style="font-size:15px">Human validation of AI-resolved tickets</h3>
+      <span class="muted" style="font-size:12.5px">A person checked the tickets that the AI resolved</span></div><a class="btn btn-soft btn-sm" data-action="goto-review">Open Review AI</a></div>
+    <div class="val-row"><div class="val-num"><b>${v.reviewed} of ${v.ai_resolved}</b><span>reviewed</span></div>
+      <div class="val-num"><b style="color:var(--green)">${v.agreement_pct}%</b><span>reviewer agrees (correct &divide; correct + incorrect)</span></div>
+      <div class="val-num"><b style="color:var(--red)">${v.incorrect}</b><span>marked incorrect</span></div>
+      <div class="val-num"><b style="color:var(--amber)">${v.unsure}</b><span>not sure</span></div>
+      <div class="val-bar"><div class="bar"><i style="width:${pct(v.correct)}%;background:var(--green)"></i><i style="width:${pct(v.incorrect)}%;background:var(--red)"></i><i style="width:${pct(v.unsure)}%;background:var(--amber)"></i></div>
+        <p class="hint">Green: correct. Red: incorrect. Amber: not sure. Grey: not reviewed yet (${v.unreviewed}).</p></div></div>${reasons}</div>`;
+}
+
 function renderDashboard() {
   const root = $("#view-dashboard"), s = state.stats;
   if (!s) { root.innerHTML = ""; return; }
@@ -310,6 +331,7 @@ function renderDashboard() {
       <div class="card chart-card"><h3>Outcomes</h3><span class="muted" style="font-size:12.5px">What happened to the ${s.processed} processed tickets</span>${donut(s)}</div>
       <div class="card chart-card"><h3>Escalations by reason</h3><span class="muted" style="font-size:12.5px">Why tickets were handed to a human</span><div class="bars">${bars}</div></div>
     </div>
+    ${reviewPanel(s)}
     <div class="card table-card"><h3>Audit trail <span class="muted" style="font-size:12.5px;font-weight:500">&middot; latest ${state.audit.length} events</span></h3>
       <table><thead><tr><th style="width:110px">Time</th><th style="width:90px">Ticket</th><th>Event</th></tr></thead><tbody>${rows}</tbody></table></div>
     <p class="footnote"><b>Auto-resolved %</b> = tickets the agent fully handled &divide; tickets processed. A ticket where the agent only asked a question is not counted as resolved.
@@ -329,11 +351,12 @@ async function refreshAll() {
   await Promise.all([loadTickets(), loadQueue()]);
   if (state.selectedId) await loadDetail(state.selectedId);
   if (state.view === "dashboard") await loadDashboard();
+  await loadReviewQueue();
   renderAll();
 }
 async function loadDashboard() { [state.stats, state.audit] = await Promise.all([api("/stats"), api("/audit?limit=25")]); }
 
-function renderAll() { renderList(); renderDetail(); renderSide(); if (state.view === "queue") renderQueue(); if (state.view === "dashboard") renderDashboard(); }
+function renderAll() { renderList(); renderDetail(); renderSide(); if (state.view === "review") renderReview(); if (state.view === "queue") renderQueue(); if (state.view === "dashboard") renderDashboard(); }
 
 async function selectTicket(id) {
   state.selectedId = id; state.editing = false; state.detail = null;
@@ -346,7 +369,8 @@ async function selectTicket(id) {
 function showView(view) {
   state.view = view;
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === view));
-  for (const v of ["inbox", "queue", "dashboard"]) $("#view-" + v).hidden = v !== view;
+  for (const v of ["inbox", "review", "queue", "dashboard"]) $("#view-" + v).hidden = v !== view;
+  if (view === "review") openReview();
   if (view === "queue") loadQueue().then(renderQueue);
   if (view === "dashboard") loadDashboard().then(renderDashboard).catch((e) => toast(e.message, "error"));
 }
@@ -379,6 +403,140 @@ async function processNext() {
   finally { btn.disabled = false; btn.innerHTML = html; state.processingNext = false; await refreshAll(); }
 }
 
+
+// ------------------------------------------------------------- Review AI
+const REVIEW_FILTERS = [["to_review", "To review"], ["correct", "Correct"], ["incorrect", "Incorrect"], ["unsure", "Not sure"], ["all", "All"]];
+const REVIEW_CHIP = { to_review: ["new", "To review"], correct: ["auto_resolved", "Correct"], incorrect: ["escalated", "Incorrect"], unsure: ["waiting", "Not sure"] };
+
+async function loadReviewQueue() {
+  const r = state.review;
+  const q = await api("/review/queue?filter=" + r.filter);
+  r.counts = q.counts; r.items = q.items;
+  const b = $("#review-badge");
+  b.textContent = q.counts.to_review; b.hidden = q.counts.to_review === 0;
+}
+
+async function openReview() {
+  const r = state.review;
+  try { await loadReviewQueue(); } catch (e) { toast(e.message, "error"); }
+  if (!r.items.some((i) => i.ticket_id === r.selectedId)) r.selectedId = r.items.length ? r.items[0].ticket_id : null;
+  r.detail = null; r.form = false;
+  renderReview();
+  if (r.selectedId) await selectReview(r.selectedId);
+}
+
+async function selectReview(id) {
+  const r = state.review;
+  r.selectedId = id; r.form = false; r.detail = null;
+  renderReview();
+  try { r.detail = await api("/review/" + id); } catch (e) { toast(e.message, "error"); }
+  renderReview();
+  const el = $(`#view-review .item[data-id="${id}"]`);
+  if (el) el.scrollIntoView({ block: "nearest" });
+}
+
+function reviewListHtml() {
+  const r = state.review, c = r.counts;
+  const done = c.correct + c.incorrect + c.unsure, pct = c.all ? Math.round((100 * done) / c.all) : 0;
+  const filters = REVIEW_FILTERS.map(([k, label]) => `<button class="filter ${r.filter === k ? "active" : ""}" data-action="review-filter" data-key="${k}">${label}<span class="n">${c[k] ?? 0}</span></button>`).join("");
+  const items = r.items.length ? r.items.map((t) => {
+    const [ck, cl] = REVIEW_CHIP[t.state];
+    return `<div class="item ${t.ticket_id === r.selectedId ? "active" : ""}" data-action="review-select" data-id="${t.ticket_id}">
+      ${avatar(t.customer_name)}<div class="item-body">
+      <div class="item-top"><span class="item-name">${esc(t.customer_name)}</span><span class="item-time">#${t.ticket_id}</span></div>
+      <div class="item-subject">${esc(t.snippet)}</div>
+      <div class="item-foot">${chip(ck, cl)}${t.outdated ? '<span class="tag tag-sim">OUTDATED</span>' : ""}${t.kind === "question" ? '<span class="muted" style="font-size:11.5px">asked a question</span>' : ""}</div></div></div>`;
+  }).join("") : `<div class="empty-list">${c.all ? "Nothing in this list." : "No AI-resolved tickets yet.<br>Process some tickets in the Inbox first."}</div>`;
+  return `<div class="col-head"><div class="col-title">AI-resolved tickets</div>
+      <button class="btn btn-soft btn-sm" data-action="review-process" title="Run the agent on the next 5 New tickets">${ico("zap")}Process 5 more</button></div>
+    <div class="rv-progress"><p><b>${done}</b> of <b>${c.all}</b> reviewed</p><div class="bar"><i style="width:${pct}%"></i></div></div>
+    <div class="filters">${filters}</div><div class="list">${items}</div>`;
+}
+
+function reviewMainHtml() {
+  const r = state.review, d = r.detail;
+  if (!r.selectedId) return `<div class="empty-state"><div class="art">${ico("review")}</div><h3>Nothing to review</h3><p>Tickets that the AI resolved appear here, so you can check them yourself.</p></div>`;
+  if (!d || d.ticket.ticket_id !== r.selectedId) return `<div class="rv-scroll"><div class="rv-grid"><div class="card card-pad" style="grid-column:1/-1">${workingHtml()}</div></div></div>`;
+  const t = d.ticket, ev = d.evidence, res = d.result;
+
+  const facts = ev.facts.length ? `<table class="facts"><thead><tr><th>Fact in the reply</th><th>Value</th><th>Found in</th></tr></thead><tbody>` +
+      ev.facts.map((f) => `<tr><td>${esc(f.kind)}</td><td><b>${esc(f.value)}</b></td><td class="${f.ok ? "fact-ok" : "fact-bad"}">${f.ok ? "&#10003; " + esc(f.where) : "&#10007; not found anywhere"}</td></tr>`).join("") + "</tbody></table>"
+      : '<p class="hint" style="margin-top:10px">The reply does not mention any order number, amount or date.</p>';
+
+  const decisions = ev.decisions.length ? ev.decisions.map((x) => `<div class="decision">${ico(x.ok ? "check" : x.kind === "lookup" ? "info" : "x")}<div><b>${esc(x.title)}</b><span class="why">${esc(x.why || "")}</span></div></div>`).join("")
+      : '<p class="hint">The AI used no tools for this ticket.</p>';
+
+  let now = '<p class="hint">No order is linked to this ticket.</p>';
+  const o = ev.order_now;
+  if (o && o.found === false) now = `<div class="note">Order #${o.order_id} is not on this customer's account, so its details are not shown.</div>`;
+  else if (o) now = `<div class="rows"><div class="row"><span>Order</span><span>#${o.order_id} &middot; ${esc(o.item)}</span></div>
+      <div class="row"><span>Amount</span><span>${money(o.amount)}</span></div><div class="row"><span>Status</span><span style="text-transform:capitalize">${esc(o.status)}</span></div>
+      <div class="row"><span>Refunded</span><span>${o.refunded ? '<span style="color:var(--green)">Yes (simulated)</span>' : "No"}</span></div>
+      ${o.refund_records.map((x) => `<div class="row"><span>Refund record</span><span>${money(x.amount)} &middot; ${esc(x.approved_by)}</span></div>`).join("")}
+      <div class="row"><span>Ship to</span><span>${esc(o.shipping_address)}</span></div></div>`;
+
+  const rv = d.review && !d.review.stale ? d.review : null;
+  const stale = d.review && d.review.stale ? '<span class="tag tag-sim">YOUR OLD REVIEW IS OUTDATED: THE REPLY CHANGED</span>' : "";
+  const stateLine = rv ? `<div class="rv-state">${chip(...REVIEW_CHIP[rv.verdict])}<span>${esc(rv.reviewer)} &middot; ${esc(fmtTime(rv.reviewed_at))}${rv.reason_text ? " &middot; " + esc(rv.reason_text) : ""}${rv.note ? " &middot; &ldquo;" + esc(rv.note) + "&rdquo;" : ""}</span>
+      <a class="link" data-action="review-clear">Clear my review</a></div>` : stale;
+  const reasons = Object.entries(d.reasons).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("");
+  const form = r.form ? `<div class="rv-form"><b style="color:#991b1b">What is wrong?</b><select id="rv-reason"><option value="">Choose a reason...</option>${reasons}</select>
+      <button class="btn btn-danger" data-action="review-save-incorrect">${ico("x")}Save as incorrect</button><a class="link" data-action="review-cancel">Cancel</a></div>` : "";
+  const disabled = r.busy ? "disabled" : "";
+
+  return `<div class="rv-scroll"><div class="rv-head"><div><h2>${esc(t.subject)}</h2>
+        <div class="detail-meta"><span>${esc(t.customer_name)} &lt;${esc(t.customer_email)}&gt;</span><span>${esc(fmtTime(t.created_at))}</span><span>Ticket #${t.ticket_id}</span></div></div>
+      <div class="detail-actions">${chip(...REVIEW_CHIP[rv ? rv.verdict : "to_review"])}<a class="btn btn-ghost btn-sm" data-action="review-open" data-id="${t.ticket_id}">Open in Inbox</a></div></div>
+    <div class="rv-grid"><div class="rv-col">
+      <div class="card card-pad"><div class="label">1. What the customer wrote</div><div class="bubble">${esc(t.body)}</div></div>
+      <div class="card card-pad"><div class="card-head"><div class="label">2. What the AI replied</div><span class="tag tag-sim">SIMULATED SEND</span></div><div class="bubble reply">${esc(res.reply)}</div></div>
+      <div class="card card-pad"><div class="label">3. Are the facts in the reply real?</div><p class="hint">Each order number, amount and date in the reply, checked against what the system returned.</p>${facts}</div>
+    </div><div class="rv-col">
+      <div class="card card-pad"><div class="label">4. What the AI did, and why the rules allowed it</div><div style="margin-top:8px">${decisions}</div>
+        <p class="hint">${ev.llm_used ? "The LLM was used to understand the request and to write the reply." : "No LLM was used for this ticket."} ${ev.tools_used} tool call(s).</p></div>
+      <div class="card card-pad"><div class="label">5. The data right now</div><div style="margin-top:8px">${now}</div></div>
+      <div class="card card-pad"><div class="card-head"><div class="label">Step by step</div><span class="muted" style="font-size:12.5px">${d.timeline.length} steps</span></div>${timelineHtml(d.timeline)}</div>
+    </div></div></div>
+    <div class="rv-bar"><div class="rv-bar-inner">${form}${stateLine ? stateLine : ""}
+      <div class="rv-buttons"><button class="btn btn-green" data-action="review-verdict" data-v="correct" ${disabled}>${ico("check")}Correct<kbd>1</kbd></button>
+        <button class="btn btn-danger" data-action="review-verdict" data-v="incorrect" ${disabled}>${ico("x")}Incorrect<kbd>2</kbd></button>
+        <button class="btn btn-amber" data-action="review-verdict" data-v="unsure" ${disabled}>${ico("help")}Not sure<kbd>3</kbd></button>
+        <input id="rv-note" class="rv-note" type="text" maxlength="300" placeholder="Optional note" value="${rv && rv.note ? esc(rv.note) : ""}">
+        <span class="hint" style="margin:0">J / K: next / previous ticket</span></div></div></div>`;
+}
+
+function renderReview() {
+  const root = $("#view-review");
+  root.innerHTML = `<section class="rv-list">${reviewListHtml()}</section><section class="rv-main">${reviewMainHtml()}</section>`;
+}
+
+async function submitReview(verdict, reason) {
+  const r = state.review; if (r.busy || !r.selectedId) return;
+  const note = ($("#rv-note") || {}).value || "";
+  r.busy = true; renderReview();
+  try {
+    const id = r.selectedId;
+    r.detail = await api("/review/" + id, { method: "POST", body: { verdict, reason: reason || null, note, reviewer: "reviewer" } });
+    toast(verdict === "correct" ? "Marked correct" : verdict === "incorrect" ? "Marked incorrect" : "Marked not sure");
+    r.form = false; r.busy = false;
+    const before = r.items.findIndex((i) => i.ticket_id === id);
+    await loadReviewQueue();
+    if (r.filter === "to_review") {                                 // the ticket left this list: go to the next one
+      const next = r.items[Math.min(before, r.items.length - 1)];
+      r.selectedId = next ? next.ticket_id : null; r.detail = null;
+      renderReview();
+      if (next) await selectReview(next.ticket_id);
+      return;
+    }
+  } catch (e) { toast(e.message, "error"); }
+  r.busy = false; renderReview();
+}
+
+async function stepReview(delta) {
+  const r = state.review, i = r.items.findIndex((x) => x.ticket_id === r.selectedId), n = r.items[i + delta];
+  if (n) await selectReview(n.ticket_id);
+}
+
 // ----------------------------------------------------------------- events
 document.addEventListener("click", async (ev) => {
   const el = ev.target.closest("[data-action], .tab");
@@ -393,6 +551,31 @@ document.addEventListener("click", async (ev) => {
     case "reject": rejectTicket(id); break;
     case "toggle-edit": state.editing = !state.editing; renderDetail(); break;
     case "open": showView("inbox"); state.filter = "all"; state.search = ""; $("#search").value = ""; await selectTicket(id); renderList(); break;
+    case "review-select": selectReview(id); break;
+    case "review-filter": state.review.filter = el.dataset.key; state.review.selectedId = null; openReview(); break;
+    case "review-verdict": {
+      const v = el.dataset.v;
+      if (v === "incorrect") { state.review.form = true; renderReview(); } else submitReview(v);
+      break;
+    }
+    case "review-save-incorrect": {
+      const reason = ($("#rv-reason") || {}).value;
+      if (!reason) { toast("Please choose what is wrong.", "error"); break; }
+      submitReview("incorrect", reason); break;
+    }
+    case "review-cancel": state.review.form = false; renderReview(); break;
+    case "review-clear":
+      try { state.review.detail = await api("/review/" + state.review.selectedId, { method: "DELETE" }); await loadReviewQueue(); renderReview(); toast("Review cleared"); }
+      catch (e) { toast(e.message, "error"); }
+      break;
+    case "review-open": showView("inbox"); state.filter = "all"; state.search = ""; $("#search").value = ""; await selectTicket(id); renderList(); break;
+    case "review-process": {
+      el.disabled = true;
+      try { const out = await api("/process_next?n=5", { method: "POST" }); toast(out.processed.length ? `Processed ${out.processed.length} tickets` : "No new tickets left"); await refreshAll(); }
+      catch (e) { toast(e.message, "error"); }
+      break;
+    }
+    case "goto-review": showView("review"); break;
     case "q-approve": await runWithBusy(id, async () => { await api(`/tickets/${id}/approve`, { method: "POST", body: { by: "human_agent" } }); }, "Approved. Refund and reply done (simulated)."); renderQueue(); break;
     case "q-reject": await runWithBusy(id, async () => { await api(`/tickets/${id}/reject`, { method: "POST", body: { by: "human_agent" } }); }, "Ticket rejected. Reply sent (simulated)."); renderQueue(); break;
   }
@@ -401,13 +584,23 @@ window.addEventListener("hashchange", () => {
   const m = /^#t(\d+)$/.exec(location.hash);
   if (m && Number(m[1]) !== state.selectedId) { showView("inbox"); selectTicket(Number(m[1])); }
 });
+document.addEventListener("keydown", (e) => {
+  if (state.view !== "review" || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test((e.target.tagName || ""))) return;
+  const k = e.key.toLowerCase();
+  if (k === "1") submitReview("correct");
+  else if (k === "2") { state.review.form = true; renderReview(); }
+  else if (k === "3") submitReview("unsure");
+  else if (k === "j" || k === "arrowdown") { e.preventDefault(); stepReview(1); }
+  else if (k === "k" || k === "arrowup") { e.preventDefault(); stepReview(-1); }
+});
 $("#search").addEventListener("input", (e) => { state.search = e.target.value; renderList(); });
 $("#btn-process-next").addEventListener("click", processNext);
 
 // ------------------------------------------------------------------ start
 (async function init() {
   try {
-    await Promise.all([loadTickets(), loadQueue()]);
+    await Promise.all([loadTickets(), loadQueue(), loadReviewQueue()]);
     const fromHash = /^#t(\d+)$/.exec(location.hash);
     const first = fromHash ? Number(fromHash[1]) : (state.tickets.find((t) => t.status_key === "waiting") || state.tickets[0] || {}).ticket_id;
     renderList();

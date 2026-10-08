@@ -84,3 +84,46 @@ def check_reply(reply: str, tool_results: list, ticket_text: str = "") -> Ground
             problems.append(f"tracking number {trk} not found in tool results")
 
     return GroundingResult(ok=not problems, problems=problems)
+
+
+def fact_table(reply: str, tool_results: list, ticket_text: str = "") -> list:
+    """Every order number, amount, date and tracking number in the reply, and where it was found.
+    Used by the review screen. 'where' is None when the fact was found nowhere (that would be a wrong fact)."""
+    tool_blob = json.dumps(tool_results, default=str)
+    cust = ticket_text or ""
+    rows = []
+
+    def add(kind, value, where):
+        if not any(r["kind"] == kind and r["value"] == value for r in rows):
+            rows.append({"kind": kind, "value": value, "where": where, "ok": where is not None})
+
+    tool_numbers = {int(n) for n in re.findall(r"\b\d{3,6}\b", tool_blob)}
+    cust_numbers = {int(n) for n in re.findall(r"\b\d{3,6}\b", cust)}
+    for n in ORDER_RE.findall(reply or ""):
+        n = int(n)
+        add("Order number", f"#{n}", "system data" if n in tool_numbers else "customer message" if n in cust_numbers else None)
+
+    tool_amounts = {round(_to_float(a), 2) for a in AMOUNT_RE.findall(tool_blob)}
+    for key, value in _walk(tool_results):
+        if key == "amount" and isinstance(value, (int, float)):
+            tool_amounts.add(round(float(value), 2))
+    cust_amounts = {round(_to_float(a), 2) for a in AMOUNT_RE.findall(cust)}
+    for a in AMOUNT_RE.findall(reply or ""):
+        v = round(_to_float(a), 2)
+        where = ("system data" if v in tool_amounts else "policy limit" if v in {round(x, 2) for x in POLICY_AMOUNTS}
+                 else "customer message" if v in cust_amounts else None)
+        add("Amount", f"${v:,.2f}", where)
+
+    tool_iso = set(ISO_DATE_RE.findall(tool_blob))
+    cust_iso = set(ISO_DATE_RE.findall(cust))
+    tool_md = {(int(m), int(d)) for _, m, d in tool_iso}
+    for y, m, d in ISO_DATE_RE.findall(reply or ""):
+        add("Date", f"{y}-{m}-{d}", "system data" if (y, m, d) in tool_iso else "customer message" if (y, m, d) in cust_iso else None)
+    for mon, day in TEXT_DATE_1.findall(reply or ""):
+        add("Date", f"{mon} {day}", "system data" if (MONTHS[mon.lower()[:3]], int(day)) in tool_md else None)
+    for day, mon in TEXT_DATE_2.findall(reply or ""):
+        add("Date", f"{day} {mon}", "system data" if (MONTHS[mon.lower()[:3]], int(day)) in tool_md else None)
+
+    for trk in TRACKING_RE.findall(reply or ""):
+        add("Tracking number", trk, "system data" if trk in tool_blob else None)
+    return rows

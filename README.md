@@ -46,6 +46,11 @@ python run_server.py            # then open http://127.0.0.1:8000
 
 Inbox with a three-column helpdesk view, a human queue (Approve / Edit / Reject), and a dashboard with live numbers from the database.
 
+**Review AI** tab (self-validation): for every ticket the AI resolved, a reviewer sees what the customer wrote, what the AI replied,
+whether every order number, amount and date in the reply was really returned by the system, what the AI did and why the rules allowed it,
+and the data as it is now. The reviewer marks the ticket Correct, Incorrect (with a reason) or Not sure (keys 1, 2, 3; J and K move between tickets).
+The Dashboard shows how many AI-resolved tickets were reviewed and how often the reviewer agrees.
+
 ## Honest evaluation
 
 The definition of "resolved" was written **before** any run: see `METRICS.md`.

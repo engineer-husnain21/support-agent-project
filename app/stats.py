@@ -9,7 +9,7 @@ Definitions (these must match METRICS.md):
   avg handling time  = average agent processing time per ticket (screen + LLM calls + tools)
 """
 import json
-from app import results
+from app import results, reviews
 from app.db import get_conn
 
 # The brief says a human needs 5-10 minutes per ticket; we use the midpoint as an ESTIMATE only.
@@ -58,4 +58,5 @@ def compute_stats() -> dict:
         "refund_total": round(refunds[1], 2),
         "estimated_minutes_saved": round(auto * MINUTES_PER_TICKET_ESTIMATE),
         "minutes_per_ticket_assumption": MINUTES_PER_TICKET_ESTIMATE,
+        "review": reviews.review_stats(),
     }

@@ -53,3 +53,11 @@ def test_human_steps():
 def test_promise_check_step():
     item = build_timeline([row("promise_check", {"ok": False, "matches": ["I'll forward"], "retry": False})])[0]
     assert item["kind"] == "warn" and "promised a human follow-up" in item["title"] and "rewriting once" in item["detail"]
+
+
+def test_review_step():
+    items = build_timeline([row("human_review", {"verdict": "incorrect", "reason": "wrong_fact", "reason_text": "Wrong fact in the reply", "by": "zubair"}),
+                            row("human_review", {"verdict": "correct", "by": "zubair"}),
+                            row("human_review", {"verdict": "unsure", "by": "zubair"})])
+    assert [i["kind"] for i in items] == ["stop", "ok", "warn"]
+    assert "zubair" in items[0]["title"] and items[0]["detail"] == "Wrong fact in the reply"
