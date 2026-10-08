@@ -32,8 +32,12 @@ def _rel(path: str) -> str:
         return path
 
 
-def load_eval_set(path=None) -> dict:
-    with open(path or _path("data", "eval_set.json"), encoding="utf-8") as f:
+# set name -> (file with the tickets, prefix of the run files)
+SETS = {"eval": ("eval_set.json", "run"), "holdout": ("holdout_set.json", "holdout_run")}
+
+
+def load_eval_set(path=None, set_name: str = "eval") -> dict:
+    with open(path or _path("data", SETS[set_name][0]), encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -69,10 +73,10 @@ def _outcome_of(ticket_id: int) -> dict:
 
 def run_eval(run_no: int, profile: int = 1, limit: int | None = None, resume: bool = False, client=None,
              out_dir=None, db_dir=None, retries: int = 2, pause: float = 15.0, log=print,
-             stop_on_failure: bool = True) -> str:
+             stop_on_failure: bool = True, set_name: str = "eval") -> str:
     previous_db = os.environ.get("STORE_DB")
     try:
-        return _run_eval(run_no, profile, limit, resume, client, out_dir, db_dir, retries, pause, log, stop_on_failure)
+        return _run_eval(run_no, profile, limit, resume, client, out_dir, db_dir, retries, pause, log, stop_on_failure, set_name)
     finally:   # never leave STORE_DB pointing at an evaluation database
         if previous_db is None:
             os.environ.pop("STORE_DB", None)
@@ -80,18 +84,19 @@ def run_eval(run_no: int, profile: int = 1, limit: int | None = None, resume: bo
             os.environ["STORE_DB"] = previous_db
 
 
-def _run_eval(run_no, profile, limit, resume, client, out_dir, db_dir, retries, pause, log, stop_on_failure) -> str:
+def _run_eval(run_no, profile, limit, resume, client, out_dir, db_dir, retries, pause, log, stop_on_failure, set_name) -> str:
     out_dir = out_dir or _path("reports")
     db_dir = db_dir or _path("data", "eval")
     os.makedirs(out_dir, exist_ok=True)
     os.makedirs(db_dir, exist_ok=True)
-    eval_set = load_eval_set()
+    eval_set = load_eval_set(set_name=set_name)
+    prefix = SETS[set_name][1]
     cases = eval_set["tickets"][:limit] if limit else eval_set["tickets"]
     partial = bool(limit)
-    out_path = os.path.join(out_dir, f"{'dryrun' if partial else 'run'}_{run_no}.json")
+    out_path = os.path.join(out_dir, f"{prefix.replace('run', 'dryrun') if partial else prefix}_{run_no}.json")
 
     base_db = os.path.join(db_dir, "base.db")
-    run_db = os.path.join(db_dir, f"run_{run_no}.db")
+    run_db = os.path.join(db_dir, f"{prefix}_{run_no}.db")
     snap_db = os.path.join(db_dir, "snapshot.db")
     ensure_base_db(base_db)
 
@@ -111,7 +116,7 @@ def _run_eval(run_no, profile, limit, resume, client, out_dir, db_dir, retries, 
         "run": run_no, "profile": profile, "model": os.environ.get("LLM_MODEL", "unknown"),
         "provider": urlparse(os.environ.get("LLM_BASE_URL", "")).netloc or "unknown",
         "started": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "finished": None,
-        "store_today": store_today().isoformat(), "retried_tickets": 0, "complete": False}
+        "store_today": store_today().isoformat(), "retried_tickets": 0, "complete": False, "set": set_name}
     done = {x["ticket_id"]: x for x in (previous or {"tickets": []})["tickets"]}
 
     con = get_conn()
@@ -126,7 +131,7 @@ def _run_eval(run_no, profile, limit, resume, client, out_dir, db_dir, retries, 
 
     entries = list(done.values())
     stopped = False
-    log(f"Run {run_no} | model {meta['model']} | {len(cases)} tickets | store: {_rel(run_db)}")
+    log(f"Run {run_no} ({set_name} set) | model {meta['model']} | {len(cases)} tickets | store: {_rel(run_db)}")
     for i, case in enumerate(cases, start=1):
         tid = case["ticket_id"]
         if tid in done:

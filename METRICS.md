@@ -85,3 +85,14 @@ The definitions in sections 1-8 were committed before run 1. Run 1 (40 tickets) 
 | Ticket 114: the same reply also said "I'll forward this to a specialist" although the ticket was NOT handed to anyone. | Real agent flaw that the scorer did not detect. | New guard in the agent: a reply that promises a human follow-up is rewritten once, and if it still does, the ticket is really escalated. The evaluation counts such a reply as **wrong** (the third extra check). This makes the evaluation stricter, not more lenient. |
 
 Process safeguard added after run 2 (it does not change any definition above): official runs stop and can be resumed when the provider keeps failing, instead of recording the failures. If a run was resumed, the report says so only through the finished time; the tickets already scored are not scored again.
+
+## 10. Held-out check (defined before it is run)
+
+Section 8 says that the final numbers are optimistic, because the agent was improved using the first test set. To get a fairer number, a second set of 40 tickets is drawn from the 110 labelled tickets that are NOT in the first set (`make_holdout_set.py`, seed 2027, same number of tickets per category, same rules). These tickets have never been used to improve the agent.
+
+- Scoring: exactly the same definitions as sections 2 to 7 (same verdicts, same targets, same extra checks).
+- The set is committed to git before the first held-out run and is never changed afterwards.
+- The agent is NOT changed after seeing this result. Whatever is wrong is reported as it is and listed as future work. If the agent is changed afterwards, that run is no longer held-out and the report must say so.
+- One run is enough for this check (the model runs at temperature 0, so extra runs are almost identical). A second run is allowed if the first one is interrupted.
+- Command: `python run_eval.py --set holdout --run 1`, then `python report.py --set holdout`. The report is `reports/HOLDOUT_REPORT.md`.
+- Expectation written down in advance: the held-out result will probably be somewhat worse than the first set, because nothing was tuned on it.

@@ -199,3 +199,10 @@ def test_report_text_has_no_placeholders_and_catches_them():
         ev.assert_no_placeholders("The number is [[TBD]]")
     with pytest.raises(ValueError):
         ev.assert_no_placeholders("value: None")
+
+
+def test_heldout_report_says_it_is_held_out():
+    text, _ = ev.render_report([fake_run(1, ROWS)], heldout=True)
+    assert "Held-out Evaluation Report" in text and "never used to improve the agent" in text
+    assert "optimistic" not in text
+    ev.assert_no_placeholders(text)

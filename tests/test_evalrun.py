@@ -81,3 +81,16 @@ def test_keep_going_scores_failures_as_safe_misses(tmp_path):
                             retries=0, pause=0, log=lambda *a: None, stop_on_failure=False)
     data = json.load(open(path))["tickets"]
     assert len(data) == 2 and data[0]["infra"] is True and data[0]["verdict"] in ("safe_miss", "correct")
+
+
+def test_holdout_set_runs_into_its_own_files(tmp_path, monkeypatch):
+    out_dir, db_dir = tmp_path / "r", tmp_path / "e"
+    path = evalrun.run_eval(1, limit=4, client=SmartFakeClient(), out_dir=str(out_dir), db_dir=str(db_dir),
+                            retries=0, pause=0, log=lambda *a: None, set_name="holdout")
+    monkeypatch.delenv("STORE_DB", raising=False)
+    assert os.path.basename(path) == "holdout_dryrun_1.json" and (db_dir / "holdout_run_1.db").exists()
+    data = json.load(open(path))
+    assert data["meta"]["set"] == "holdout"
+    ids = {t["ticket_id"] for t in data["tickets"]}
+    assert ids == {t["ticket_id"] for t in evalrun.load_eval_set(set_name="holdout")["tickets"][:4]}
+    assert not ids & {t["ticket_id"] for t in evalrun.load_eval_set()["tickets"]}
