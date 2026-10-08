@@ -94,3 +94,15 @@ resource-setup-guide.md   the free resources used and how to set them up
 - 40 tickets is a small test set, and the agent was improved after run 1 using this same set, so the final numbers are optimistic.
 - Reply checks are keyword checks; tone and writing quality are not scored.
 - Free LLM tiers have daily token limits: one 40-ticket run uses about 60,000 tokens.
+
+## Review AI without an API key
+
+`data/sample_review_store.db` is a store in which 40 tickets were already processed by the real LLM (the held-out evaluation run). It lets you try the **Review AI** tab without any key:
+
+```
+$env:STORE_DB="data\sample_review_store.db"     (Windows PowerShell; macOS/Linux: export STORE_DB=data/sample_review_store.db)
+python run_server.py                             # open http://127.0.0.1:8000 and click "Review AI"
+Remove-Item Env:STORE_DB                         # afterwards: go back to the normal store
+```
+
+The reviews you save are written into that file.

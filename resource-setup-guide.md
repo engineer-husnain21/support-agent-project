@@ -112,3 +112,15 @@ Put the second provider in `.env` as `LLM2_API_KEY`, `LLM2_BASE_URL` and `LLM2_M
 | PowerShell: "running scripts is disabled" | Run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`, then activate the environment again. |
 | `python` shows an old version (pyenv) | Install Python 3.12 and run `pyenv local 3.12.7` in the project folder. |
 | The UI shows old results | Stop the server, run `python reset_store.py` and `python demo_cases.py`, start the server and refresh the browser. |
+
+## 9. Try the Review AI tab without an API key
+
+`data/sample_review_store.db` contains 40 tickets that were processed by the real LLM (`openai/gpt-oss-120b`) in the held-out evaluation, with their replies, audit trails and refund records. It is mock data and contains no keys. To review the AI-resolved tickets without creating any account:
+
+```
+$env:STORE_DB="data\sample_review_store.db"        (Windows PowerShell; macOS/Linux: export STORE_DB=data/sample_review_store.db)
+python run_server.py                                # open http://127.0.0.1:8000 and click "Review AI"
+Remove-Item Env:STORE_DB                            # afterwards: back to the normal store
+```
+
+The API key is needed only to process NEW tickets (the "Process with agent" button). Reviews are saved into the sample file.
